@@ -1,3 +1,23 @@
 .claude/settings.local.json
 .claude/.session_markers/
 .DS_Store
+
+# Secrets / credentials — never commit these
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+.netrc
+credentials.json
+credentials.yml
+credentials.yaml
+secrets.json
+secrets.yml
+secrets.yaml
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub

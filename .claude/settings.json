@@ -6,7 +6,16 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=$(jq -r '.tool_input.file_path // empty'); if [ -n \"$f\" ] && [[ \"$f\" != \"/Users/kuramochikeito/Desktop/hobby/sensor\"/* ]] && [ \"$f\" != \"/Users/kuramochikeito/Desktop/hobby/sensor\" ]; then jq -n '{hookSpecificOutput:{hookEventName:\"PreToolUse\",permissionDecision:\"deny\",permissionDecisionReason:\"File operations outside the project folder /Users/kuramochikeito/Desktop/hobby/sensor are not allowed.\"}}'; fi"
+            "command": "f=$(jq -r \".tool_input.file_path // empty\"); if [ -n \"$f\" ] && [[ \"$f\" != \"/Users/kuramochikeito/Desktop/hobby/sensor\"/* ]] && [ \"$f\" != \"/Users/kuramochikeito/Desktop/hobby/sensor\" ]; then jq -n \"{hookSpecificOutput:{hookEventName:\\\"PreToolUse\\\",permissionDecision:\\\"deny\\\",permissionDecisionReason:\\\"File operations outside the project folder /Users/kuramochikeito/Desktop/hobby/sensor are not allowed.\\\"}}\"; fi"
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r \".tool_input.file_path // empty\"); if [ -n \"$f\" ]; then b=$(basename \"$f\"); if echo \"$b\" | grep -Eiq \"^\\.env(\\..*)?$|credentials|secrets?\\.(json|ya?ml|txt)$|\\.pem$|\\.key$|\\.p12$|\\.pfx$|^id_rsa|^id_ed25519|\\.keystore$|^\\.netrc$\"; then jq -n \"{hookSpecificOutput:{hookEventName:\\\"PreToolUse\\\",permissionDecision:\\\"deny\\\",permissionDecisionReason:\\\"Access to environment or secret files (.env, credentials, keys, etc.) is blocked by project policy. Never read or reference these files.\\\"}}\"; fi; fi"
           }
         ]
       }
@@ -16,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "mkdir -p .claude/.session_markers; sid=$(jq -r '.session_id // \"unknown\"'); date +%s > \".claude/.session_markers/$sid\"; jq -n '{hookSpecificOutput:{hookEventName:\"SessionStart\",additionalContext:\"SESSION LOGGING RULE (see CLAUDE.md): This project keeps a shared progress log at SESSION_LOG.md so any session, on any machine, can see what is currently being worked on. At the start of this session, read SESSION_LOG.md to catch up on prior context. Before this session ends, add a new dated entry near the top of the Entries section (do not delete prior entries) in the format: ## YYYY-MM-DD HH:MM - short title, followed by bullet points covering what was done, current status, and next steps. Keep entries concise.\"}}'"
+            "command": "mkdir -p .claude/.session_markers; sid=$(jq -r \".session_id // \\\"unknown\\\"\"); date +%s > \".claude/.session_markers/$sid\"; jq -n \"{hookSpecificOutput:{hookEventName:\\\"SessionStart\\\",additionalContext:\\\"SESSION LOGGING RULE (see CLAUDE.md): This project keeps a shared progress log at SESSION_LOG.md so any session, on any machine, can see what is currently being worked on. At the start of this session, read SESSION_LOG.md to catch up on prior context. Before this session ends, add a new dated entry near the top of the Entries section (do not delete prior entries) in the format: ## YYYY-MM-DD HH:MM - short title, followed by bullet points covering what was done, current status, and next steps. Keep entries concise.\\\"}}\""
           }
         ]
       }
@@ -26,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sid=$(jq -r '.session_id // \"unknown\"'); marker=\".claude/.session_markers/$sid\"; if [ -f \"$marker\" ]; then start_ts=$(cat \"$marker\"); log_mtime=$(stat -f %m SESSION_LOG.md 2>/dev/null || echo 0); if [ \"$log_mtime\" -le \"$start_ts\" ]; then jq -n '{decision:\"block\",reason:\"SESSION_LOG.md has not been updated yet in this session. Append a dated entry (what was done / current status / next steps) to SESSION_LOG.md before finishing, per the project rule in CLAUDE.md.\"}'; fi; fi"
+            "command": "sid=$(jq -r \".session_id // \\\"unknown\\\"\"); marker=\".claude/.session_markers/$sid\"; if [ -f \"$marker\" ]; then start_ts=$(cat \"$marker\"); log_mtime=$(stat -f %m SESSION_LOG.md 2>/dev/null || echo 0); if [ \"$log_mtime\" -le \"$start_ts\" ]; then jq -n \"{decision:\\\"block\\\",reason:\\\"SESSION_LOG.md has not been updated yet in this session. Append a dated entry (what was done / current status / next steps) to SESSION_LOG.md before finishing, per the project rule in CLAUDE.md.\\\"}\"; fi; fi"
           }
         ]
       }
