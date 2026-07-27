@@ -12,14 +12,22 @@
 
 <header class="hero">
   <div class="hero-inner">
-    <span class="kicker">フィジカルAI工作記</span>
-    <h1>100円ショップのLEDライトとリモコンで<br>リズムゲームを作った</h1>
+    <div class="kicker">PHYSICAL AI ・ 工作記</div>
+    <h1>100円ショップのLEDライトとリモコンで、リズムゲームを作った</h1>
+    <!-- ゲームの16拍レーンのミニチュア -->
+    <div class="beat-strip" aria-hidden="true">
+      <span></span><span></span><span class="on" style="background:var(--c-red)"></span><span></span>
+      <span></span><span class="on" style="background:var(--c-blue)"></span><span></span><span class="on" style="background:var(--c-lime)"></span>
+      <span></span><span></span><span class="on" style="background:var(--c-sky)"></span><span></span>
+      <span></span><span class="on" style="background:var(--c-purple)"></span><span></span><span></span>
+    </div>
     <p class="lead">
       100円ショップで売っている「リモコン式LEDライト」(300円)。
       これを分解して、AIに聞きながら配線とプログラムを組んだら、
       リモコンをコントローラーにしたリズムゲームになりました。
       その制作記録と、「AI × ハードウェア」の面白さの話です。
     </p>
+    <div class="meta">2026-07 ・ <a href="https://github.com/KeitoKuramochi/sensor_infrared" target="_blank" rel="noopener">github.com/KeitoKuramochi/sensor_infrared</a></div>
   </div>
 </header>
 
@@ -29,7 +37,7 @@
        1. デモ動画
        動画は site/videos/demo.mp4 を置くと再生できるようになります。
        ============================================================ -->
-  <section id="demo">
+  <section id="demo" style="--sec: var(--c-red)">
     <h2>実際に動く様子はこちら</h2>
     <p>
       リモコンのボタンを押すと、画面の色とリズムに合わせて判定が出ます。
@@ -46,7 +54,7 @@
   <!-- ============================================================
        2. この記事で伝えたいこと
        ============================================================ -->
-  <section id="message">
+  <section id="message" style="--sec: var(--c-green)">
     <h2>この記事で伝えたいこと</h2>
     <p>
       AIの使い方というと、コードを書いてもらう・文章をまとめてもらうといった
@@ -66,7 +74,7 @@
   <!-- ============================================================
        3. きっかけ
        ============================================================ -->
-  <section id="origin">
+  <section id="origin" style="--sec: var(--c-orange)">
     <h2>きっかけ:講義で「AIと一緒にものを作る」体験をした</h2>
     <p>
       最初のきっかけは大学の講義でした。最終回の課題で、
@@ -89,7 +97,7 @@
   <!-- ============================================================
        4. 100均は電子部品の宝庫
        ============================================================ -->
-  <section id="treasure">
+  <section id="treasure" style="--sec: var(--c-yellow)">
     <h2>100円ショップは「電子部品の宝庫」だった</h2>
     <p>
       そういう目で100円ショップを歩いてみると、
@@ -103,24 +111,27 @@
       <li><strong>モバイルバッテリー</strong> → 小さなバッテリーセルが入っていて、自作物の電源に使えそう</li>
     </ul>
 
-    <figure class="photo">
-      <img src="images/daiso-others.jpg" alt="100円ショップで見つけた、部品として使えそうなもの(おもちゃの車とLEDキーホルダーライト)" loading="lazy">
-      <figcaption>100均で見つけた「部品として使えそうなもの」たち。おもちゃの車、LEDキーホルダーライトなど</figcaption>
-    </figure>
-
-    <!-- 📷 追加写真プレースホルダ: 100円ショップの売り場・パッケージ入り状態の写真
-         写真を site/images/ に置いたら、下の .photo-placeholder ブロックを
-         上の figure.photo と同じ形(img + figcaption)に差し替えてください。 -->
-    <figure class="photo-placeholder">
-      <div class="frame">📷 ここに「100円ショップで売られているパッケージ入り状態」の写真が入ります</div>
-      <figcaption>売り場で見つけたときの様子(写真は後日追加予定)</figcaption>
-    </figure>
+    <div class="photo-grid">
+      <figure class="photo">
+        <a class="zoom" href="images/daiso-others.jpg" target="_blank" rel="noopener">
+          <img src="images/daiso-others.jpg" alt="100円ショップで見つけた、部品として使えそうなもの(おもちゃの車とLEDキーホルダーライト)" loading="lazy">
+        </a>
+        <figcaption>100均で見つけた「部品として使えそうなもの」たち(クリックで拡大)</figcaption>
+      </figure>
+      <!-- 📷 追加写真プレースホルダ: 100円ショップの売り場・パッケージ入り状態の写真
+           写真を site/images/ に置いたら、この photo-placeholder を
+           上と同じ figure.photo(a.zoom + img + figcaption)に差し替えてください。 -->
+      <figure class="photo-placeholder">
+        <div class="frame">📷 ここに「100円ショップで売られているパッケージ入り状態」の写真が入ります</div>
+        <figcaption>売り場で見つけたときの様子(写真は後日追加予定)</figcaption>
+      </figure>
+    </div>
   </section>
 
   <!-- ============================================================
        5. なぜLEDライト+リモコンを選んだか
        ============================================================ -->
-  <section id="why">
+  <section id="why" style="--sec: var(--c-blue)">
     <h2>なぜ「LEDライト+リモコン」を選んだのか</h2>
     <p>
       その中で今回選んだのが、このLEDライトとリモコンのセットです。
@@ -136,8 +147,10 @@
       「これだけ遊べそうなものが300円で買える」——それがこのセットを買った理由です。
     </p>
 
-    <figure class="photo">
-      <img src="images/remote.jpg" alt="付属のリモコン。ON/OFF/Modeボタンと12色のカラーボタンが並んでいる" loading="lazy">
+    <figure class="photo compact">
+      <a class="zoom" href="images/remote.jpg" target="_blank" rel="noopener">
+        <img src="images/remote.jpg" alt="付属のリモコン。ON/OFF/Modeボタンと12色のカラーボタンが並んでいる" loading="lazy">
+      </a>
       <figcaption>付属のリモコン。ON / OFF / Mode に加えて<strong>12色のカラーボタン</strong>が並ぶ。この「色の多さ」が後でゲームに化ける</figcaption>
     </figure>
   </section>
@@ -145,7 +158,7 @@
   <!-- ============================================================
        6. 開けてみた
        ============================================================ -->
-  <section id="teardown">
+  <section id="teardown" style="--sec: var(--c-purple)">
     <h2>開けてみた</h2>
     <p>
       さっそく分解してみると、中はこんな感じでした。
@@ -153,13 +166,17 @@
       <strong>色が変わるRGB LED</strong>が載っています。
     </p>
 
-    <div class="photo-row">
+    <div class="photo-grid">
       <figure class="photo">
-        <img src="images/led-pcb.jpg" alt="LEDライトを分解した中身。CHS005RGB-02と書かれた基板に赤外線受信部とRGB LEDが載っている" loading="lazy">
+        <a class="zoom" href="images/led-pcb.jpg" target="_blank" rel="noopener">
+          <img src="images/led-pcb.jpg" alt="LEDライトを分解した中身。CHS005RGB-02と書かれた基板に赤外線受信部とRGB LEDが載っている" loading="lazy">
+        </a>
         <figcaption>ケースを開けたところ。左の黒いドームが赤外線受信部、中央がRGB LED</figcaption>
       </figure>
       <figure class="photo">
-        <img src="images/led-pcb-soldered.jpg" alt="基板の拡大。電池ボックスへの配線をはんだ付けしてある" loading="lazy">
+        <a class="zoom" href="images/led-pcb-soldered.jpg" target="_blank" rel="noopener">
+          <img src="images/led-pcb-soldered.jpg" alt="基板の拡大。電池ボックスへの配線をはんだ付けしてある" loading="lazy">
+        </a>
         <figcaption>基板の拡大。あとで信号を取り出すために配線をはんだ付けした状態</figcaption>
       </figure>
     </div>
@@ -175,7 +192,7 @@
   <!-- ============================================================
        7. 使った機材
        ============================================================ -->
-  <section id="gear">
+  <section id="gear" style="--sec: var(--c-sky)">
     <h2>使った機材</h2>
     <p>
       今回使ったのは以下の機材です。主役のLEDライト以外はAmazonなどで手に入ります
@@ -228,18 +245,23 @@
       </div>
     </div>
 
-    <figure class="photo">
-      <img src="images/parts-all.jpg" alt="今回使った部品一式。LEDライト本体、分解した中身、ESP32、リモコン" loading="lazy">
-      <figcaption>今回の登場人物たち。左からLEDライト本体とフタ、分解した中身(右上)、ESP32(中央)、リモコン(下)</figcaption>
-    </figure>
-
-    <figure class="photo">
-      <img src="images/esp32-oled.jpg" alt="OLEDディスプレイ付きのESP32開発ボードをブレッドボードに載せたところ" loading="lazy">
-      <figcaption>ESP32開発ボード。中央の黒い画面がOLEDディスプレイ(基板に一体型)</figcaption>
-    </figure>
+    <div class="photo-grid">
+      <figure class="photo">
+        <a class="zoom" href="images/parts-all.jpg" target="_blank" rel="noopener">
+          <img src="images/parts-all.jpg" alt="今回使った部品一式。LEDライト本体、分解した中身、ESP32、リモコン" loading="lazy">
+        </a>
+        <figcaption>今回の登場人物たち。LEDライト本体とフタ、分解した中身、ESP32、リモコン</figcaption>
+      </figure>
+      <figure class="photo">
+        <a class="zoom" href="images/esp32-oled.jpg" target="_blank" rel="noopener">
+          <img src="images/esp32-oled.jpg" alt="OLEDディスプレイ付きのESP32開発ボードをブレッドボードに載せたところ" loading="lazy">
+        </a>
+        <figcaption>ESP32開発ボード。中央の黒い画面がOLED(基板に一体型)</figcaption>
+      </figure>
+    </div>
 
     <!-- 📷 追加写真プレースホルダ: ジャンパー線などの機材写真 -->
-    <figure class="photo-placeholder">
+    <figure class="photo-placeholder standalone">
       <div class="frame">📷 ここに「ジャンパー線などの機材」の写真が入ります</div>
       <figcaption>ジャンパー線・ブレッドボードなどの機材(写真は後日追加予定)</figcaption>
     </figure>
@@ -248,7 +270,7 @@
   <!-- ============================================================
        8. 作り方の流れ
        ============================================================ -->
-  <section id="howto">
+  <section id="howto" style="--sec: var(--c-lime)">
     <h2>どう作ったか:AIとの共同作業</h2>
 
     <h3>全体の仕組み</h3>
@@ -266,7 +288,7 @@
         <!-- 矢印1 -->
         <line class="dg-arrow" x1="165" y1="85" x2="245" y2="85"/>
         <polygon class="dg-arrowhead" points="245,85 233,79 233,91"/>
-        <text class="dg-text-accent" x="205" y="70" text-anchor="middle">赤外線</text>
+        <text class="dg-text-accent" x="205" y="68" text-anchor="middle">赤外線</text>
         <!-- ESP32 -->
         <rect class="dg-box-accent" x="250" y="40" width="170" height="90" rx="10"/>
         <text class="dg-text" x="335" y="72" text-anchor="middle">ESP32</text>
@@ -275,7 +297,7 @@
         <!-- 矢印2 -->
         <line class="dg-arrow" x1="425" y1="85" x2="505" y2="85"/>
         <polygon class="dg-arrowhead" points="505,85 493,79 493,91"/>
-        <text class="dg-text-accent" x="465" y="70" text-anchor="middle">WiFi</text>
+        <text class="dg-text-accent" x="465" y="68" text-anchor="middle">WiFi</text>
         <!-- PC -->
         <rect class="dg-box" x="510" y="40" width="160" height="90" rx="10"/>
         <text class="dg-text" x="590" y="72" text-anchor="middle">PC</text>
@@ -285,7 +307,7 @@
       <figcaption>全体の構成。リモコン → 赤外線 → ESP32 → WiFi → PC(ブラウザのゲーム画面)</figcaption>
     </figure>
 
-    <h3>ステップ1:AIに「何を準備すればいい?」から聞く</h3>
+    <h3><span class="step-no">STEP 1</span>AIに「何を準備すればいい?」から聞く</h3>
     <p>
       作業はすべて、AI(Claude)に
       <strong>「こういうことがしたい。何を準備すればいい?」</strong>と聞くところから始めました。
@@ -301,7 +323,7 @@
       AIは強力な先生ですが、鵜呑みにせず裏を取る。これはハードウェアでは特に大事です。
     </div>
 
-    <h3>ステップ2:受信部品をESP32につなぐ</h3>
+    <h3><span class="step-no">STEP 2</span>受信部品をESP32につなぐ</h3>
     <p>
       分解した基板の受信部品(VS838)から3本の線を取り出し、ESP32につなぎます。
       配線はたったこれだけです。
@@ -340,7 +362,7 @@
       <figcaption>配線図。VS838の OUT → GPIO27、GND → GND、VCC → 3V3 の3本だけ</figcaption>
     </figure>
 
-    <h3>ステップ3:リモコンの「暗号」を解読する</h3>
+    <h3><span class="step-no">STEP 3</span>リモコンの「暗号」を解読する</h3>
     <p>
       リモコンのボタンはそれぞれ固有の信号(コード)を赤外線で送っています。
       ESP32に受信プログラムを書き込み、シリアルモニタという画面で受信した値を見ながら
@@ -353,12 +375,12 @@
           <tr><th>ボタン</th><th>受信コード</th></tr>
         </thead>
         <tbody>
-          <tr><td>ON</td><td><code>0x1FE48B7</code></td></tr>
-          <tr><td>OFF</td><td><code>0x1FE58A7</code></td></tr>
-          <tr><td>赤</td><td><code>0x1FE20DF</code></td></tr>
-          <tr><td>緑</td><td><code>0x1FEA05F</code></td></tr>
-          <tr><td>青</td><td><code>0x1FE609F</code></td></tr>
-          <tr><td>黄</td><td><code>0x1FE50AF</code></td></tr>
+          <tr><td>ON</td><td class="mono">0x1FE48B7</td></tr>
+          <tr><td>OFF</td><td class="mono">0x1FE58A7</td></tr>
+          <tr><td><span class="chip" style="background:var(--c-red)"></span>赤</td><td class="mono">0x1FE20DF</td></tr>
+          <tr><td><span class="chip" style="background:var(--c-green)"></span>緑</td><td class="mono">0x1FEA05F</td></tr>
+          <tr><td><span class="chip" style="background:var(--c-blue)"></span>青</td><td class="mono">0x1FE609F</td></tr>
+          <tr><td><span class="chip" style="background:var(--c-yellow)"></span>黄</td><td class="mono">0x1FE50AF</td></tr>
         </tbody>
       </table>
     </div>
@@ -384,7 +406,7 @@
       </li>
     </ul>
 
-    <h3>ステップ4:ゲーム画面はPCに任せる(方針転換)</h3>
+    <h3><span class="step-no">STEP 4</span>ゲーム画面はPCに任せる(方針転換)</h3>
     <p>
       当初はLEDライト本体を光らせてゲームをする予定でしたが、
       LED側の配線の特定がテスターなしでは難しく、いったん保留に。
@@ -411,17 +433,17 @@
         <line class="dg-arrow" x1="498" y1="55" x2="498" y2="115" stroke-dasharray="3 4"/>
         <line class="dg-arrow" x1="576" y1="55" x2="576" y2="115" stroke-dasharray="3 4"/>
         <!-- notes -->
-        <circle cx="147" cy="85" r="16" fill="#d33b30"/>
-        <circle cx="303" cy="85" r="16" fill="#2fa85a"/>
-        <circle cx="459" cy="85" r="16" fill="#3a5fe0"/>
-        <circle cx="615" cy="85" r="16" fill="#cbc72e"/>
+        <circle cx="147" cy="85" r="16" fill="var(--c-red)"/>
+        <circle cx="303" cy="85" r="16" fill="var(--c-green)"/>
+        <circle cx="459" cy="85" r="16" fill="var(--c-blue)"/>
+        <circle cx="615" cy="85" r="16" fill="var(--c-yellow)"/>
         <!-- direction -->
         <line class="dg-arrow" x1="560" y1="140" x2="120" y2="140"/>
         <polygon class="dg-arrowhead" points="120,140 132,134 132,146"/>
         <text class="dg-text-small" x="340" y="160" text-anchor="middle">ビートが判定ラインに向かって流れてくる</text>
         <!-- judgment line -->
-        <line x1="70" y1="45" x2="70" y2="125" stroke="var(--accent)" stroke-width="3"/>
-        <text class="dg-text-accent" x="70" y="40" text-anchor="middle">判定ライン</text>
+        <line class="dg-judge" x1="70" y1="45" x2="70" y2="125"/>
+        <text class="dg-text-accent" x="70" y="38" text-anchor="middle">判定ライン</text>
         <!-- judgment windows -->
         <text class="dg-text-small" x="340" y="190" text-anchor="middle">ピッタリ = EXCELLENT / 少しズレ = OK / 大きくズレ・素通り = ライフが減る</text>
       </svg>
@@ -436,13 +458,17 @@
       <li>連続で成功するとコンボボーナスでスコアが伸びる</li>
     </ul>
 
-    <div class="photo-row">
+    <div class="photo-grid">
       <figure class="photo">
-        <img src="images/wiring-1.jpg" alt="配線してOLEDにColor Memory Gameと表示されているESP32" loading="lazy">
+        <a class="zoom" href="images/wiring-1.jpg" target="_blank" rel="noopener">
+          <img src="images/wiring-1.jpg" alt="配線してOLEDにColor Memory Gameと表示されているESP32" loading="lazy">
+        </a>
         <figcaption>配線して起動したところ。OLEDにゲーム名が表示された</figcaption>
       </figure>
       <figure class="photo">
-        <img src="images/wiring-2.jpg" alt="ESP32と分解したLEDライト基板をジャンパー線で接続した全体の様子" loading="lazy">
+        <a class="zoom" href="images/wiring-2.jpg" target="_blank" rel="noopener">
+          <img src="images/wiring-2.jpg" alt="ESP32と分解したLEDライト基板をジャンパー線で接続した全体の様子" loading="lazy">
+        </a>
         <figcaption>ESP32と分解した基板をジャンパー線で接続した様子</figcaption>
       </figure>
     </div>
@@ -451,7 +477,7 @@
   <!-- ============================================================
        9. まとめ
        ============================================================ -->
-  <section id="summary">
+  <section id="summary" style="--sec: var(--accent)">
     <h2>まとめ:AIと一緒なら、現実のものづくりはもっと身近になる</h2>
     <p>
       300円のLEDライトが、AIに聞きながら手を動かしただけで、
@@ -468,7 +494,7 @@
       100円ショップを「部品の宝庫」として眺めるところから、ぜひ始めてみてください。
     </p>
     <p>
-      ソースコード(ESP32のプログラム・ゲーム本体)はGitHubで公開しています:<br>
+      ソースコードと作り方の手順(README)はGitHubで公開しています:<br>
       <a href="https://github.com/KeitoKuramochi/sensor_infrared" target="_blank" rel="noopener">github.com/KeitoKuramochi/sensor_infrared</a>
     </p>
   </section>
@@ -476,7 +502,15 @@
 </main>
 
 <footer>
-  <p>作: <a href="https://github.com/KeitoKuramochi" target="_blank" rel="noopener">KeitoKuramochi</a> — AIアシスタント(Claude)と一緒に制作しました</p>
+  <div class="footer-inner">
+    <div class="beat-strip" aria-hidden="true">
+      <span class="on" style="background:var(--c-red)"></span><span></span><span class="on" style="background:var(--c-orange)"></span><span></span>
+      <span class="on" style="background:var(--c-yellow)"></span><span></span><span class="on" style="background:var(--c-green)"></span><span></span>
+      <span class="on" style="background:var(--c-sky)"></span><span></span><span class="on" style="background:var(--c-blue)"></span><span></span>
+      <span class="on" style="background:var(--c-purple)"></span><span></span><span></span><span></span>
+    </div>
+    <p>作: <a href="https://github.com/KeitoKuramochi" target="_blank" rel="noopener">KeitoKuramochi</a> — AIアシスタント(Claude)と一緒に制作しました</p>
+  </div>
 </footer>
 
 </body>

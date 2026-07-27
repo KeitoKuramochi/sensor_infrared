@@ -1,34 +1,43 @@
 /* ============================================================
-   100円ショップのLEDライトでリズムゲームを作った話 - スタイル
-   シンプルな縦一列の記事レイアウト。スマホ優先・ダークモード対応。
+   100円ショップのLEDライトでリズムゲームを作った話
+   デザインテーマ: 「リモコンの12色」と「OLEDのシアン」
+   - 地: 青みがかった紙白 / ダークはOLED風の黒
+   - アクセント: OLEDシアン
+   - ゲーム実物の12色をビート・ドットとして使う
    ============================================================ */
 
 :root {
-  --bg: #fdfcf9;
-  --bg-soft: #f3f1ea;
-  --text: #2b2a26;
-  --text-soft: #6b675e;
-  --accent: #d95a2b;
-  --accent-soft: #fbe8de;
-  --line: #e2ded4;
+  --bg: #fbfcfb;
+  --panel: #f1f4f4;
+  --ink: #20242b;
+  --ink-soft: #5d6570;
+  --line: #dde3e2;
   --card: #ffffff;
-  --diagram-box: #ffffff;
-  --diagram-stroke: #8a857a;
+  --accent: #0e7e9c;
+  --accent-bg: #e3f1f5;
+  /* ゲーム実物の12色から(pc_game/game_server.py と同じ値) */
+  --c-red: #d33b30;
+  --c-orange: #d98a1f;
+  --c-yellow: #cbc72e;
+  --c-lime: #9ecc1f;
+  --c-green: #2fa85a;
+  --c-sky: #6fb8e8;
+  --c-blue: #3a5fe0;
+  --c-purple: #9c3fa0;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #191817;
-    --bg-soft: #211f1e;
-    --text: #ece9e2;
-    --text-soft: #a5a094;
-    --accent: #f0793f;
-    --accent-soft: #3a2a20;
-    --line: #3a3733;
-    --card: #232120;
-    --diagram-box: #2a2826;
-    --diagram-stroke: #8a857a;
+    --bg: #0e1116;
+    --panel: #151a20;
+    --ink: #e6eaed;
+    --ink-soft: #9aa4ad;
+    --line: #2a323a;
+    --card: #151a20;
+    --accent: #57c8e4;
+    --accent-bg: #11303b;
   }
 }
 
@@ -41,165 +50,251 @@ body {
   font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP",
     system-ui, sans-serif;
   background: var(--bg);
-  color: var(--text);
-  line-height: 1.9;
-  font-size: 16px;
+  color: var(--ink);
+  line-height: 1.95;
+  font-size: 15.5px;
   -webkit-font-smoothing: antialiased;
+  /* 長いURL等が画面幅を押し広げないように折り返す */
+  overflow-wrap: break-word;
 }
 
 main {
-  max-width: 720px;
+  max-width: 680px;
   margin: 0 auto;
-  padding: 0 20px 80px;
-}
-
-/* ---------- ヒーロー ---------- */
-
-header.hero {
-  background: var(--bg-soft);
-  border-bottom: 1px solid var(--line);
-  padding: 56px 20px 40px;
-  text-align: center;
-}
-
-.hero-inner {
-  max-width: 720px;
-  margin: 0 auto;
-}
-
-.hero .kicker {
-  display: inline-block;
-  color: var(--accent);
-  background: var(--accent-soft);
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  border-radius: 999px;
-  padding: 4px 14px;
-  margin-bottom: 18px;
-}
-
-.hero h1 {
-  font-size: 1.75rem;
-  line-height: 1.5;
-  margin: 0 0 16px;
-  font-weight: 800;
-}
-
-.hero .lead {
-  color: var(--text-soft);
-  font-size: 1rem;
-  margin: 0 auto;
-  max-width: 34em;
-  text-align: left;
-}
-
-/* ---------- 見出し・本文 ---------- */
-
-section {
-  margin-top: 64px;
-}
-
-h2 {
-  font-size: 1.35rem;
-  line-height: 1.5;
-  border-left: 5px solid var(--accent);
-  padding-left: 14px;
-  margin: 0 0 20px;
-}
-
-h3 {
-  font-size: 1.05rem;
-  margin: 32px 0 8px;
-}
-
-p {
-  margin: 0 0 1.2em;
+  padding: 0 20px 72px;
 }
 
 a {
   color: var(--accent);
 }
 
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 strong {
   font-weight: 700;
+}
+
+/* ---------- ヒーロー ---------- */
+
+header.hero {
+  border-bottom: 1px solid var(--line);
+  padding: 60px 20px 44px;
+}
+
+.hero-inner {
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+.hero .kicker {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.22em;
+  color: var(--accent);
+  margin-bottom: 14px;
+}
+
+.hero h1 {
+  font-size: clamp(1.55rem, 5.4vw, 2.05rem);
+  line-height: 1.45;
+  font-weight: 800;
+  margin: 0 0 6px;
+  text-wrap: balance;
+}
+
+/* 16拍のビートストリップ(ゲームの16拍レーンのミニチュア) */
+.beat-strip {
+  display: flex;
+  gap: 6px;
+  margin: 22px 0 26px;
+}
+
+.beat-strip span {
+  width: 13px;
+  height: 13px;
+  border-radius: 4px;
+  border: 1.5px solid var(--line);
+  background: transparent;
+}
+
+.beat-strip span.on {
+  border-color: transparent;
+}
+
+.hero .lead {
+  color: var(--ink-soft);
+  margin: 0;
+  max-width: 36em;
+}
+
+.hero .meta {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--ink-soft);
+  margin-top: 26px;
+  letter-spacing: 0.04em;
+}
+
+.hero .meta a {
+  color: inherit;
+}
+
+/* ---------- 見出し・本文 ---------- */
+
+section {
+  margin-top: 72px;
+}
+
+h2 {
+  font-size: 1.28rem;
+  line-height: 1.5;
+  font-weight: 800;
+  margin: 0 0 18px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  text-wrap: balance;
+}
+
+/* 各セクションの頭に、リモコンの色ボタンをひとつ */
+h2::before {
+  content: "";
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 4px;
+  background: var(--sec, var(--accent));
+  transform: translateY(1px);
+}
+
+h3 {
+  font-size: 1.02rem;
+  font-weight: 700;
+  margin: 36px 0 8px;
+}
+
+h3 .step-no {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+  display: block;
+  margin-bottom: 2px;
+}
+
+p {
+  margin: 0 0 1.25em;
 }
 
 ul,
 ol {
   padding-left: 1.4em;
-  margin: 0 0 1.2em;
+  margin: 0 0 1.25em;
 }
 
 li {
-  margin-bottom: 0.4em;
+  margin-bottom: 0.45em;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  background: var(--panel);
+  border-radius: 5px;
+  padding: 1px 6px;
 }
 
 /* ---------- 写真 ---------- */
+/* 写真は「小さめに並べて、クリックで原寸」が基本ルール */
 
 figure.photo {
-  margin: 28px 0;
+  margin: 26px 0;
+}
+
+figure.photo a.zoom {
+  display: block;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
 }
 
 figure.photo img {
   width: 100%;
   height: auto;
-  border-radius: 10px;
   display: block;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
 }
 
-figure.photo figcaption,
-figure.diagram figcaption,
-figure.photo-placeholder figcaption {
-  font-size: 0.85rem;
-  color: var(--text-soft);
-  margin-top: 10px;
-  text-align: center;
-  line-height: 1.6;
+/* 1枚だけ見せるときも幅を絞る */
+figure.photo.compact {
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-/* 2枚横並び(スマホでは縦積み) */
-.photo-row {
+figcaption {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  margin-top: 8px;
+  line-height: 1.7;
+}
+
+/* 2枚組グリッド(スマホでは1列) */
+.photo-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin: 28px 0;
+  gap: 14px;
+  margin: 26px 0;
 }
 
-.photo-row figure.photo {
+.photo-grid figure.photo {
   margin: 0;
 }
 
-@media (max-width: 560px) {
-  .photo-row {
+@media (max-width: 540px) {
+  .photo-grid {
     grid-template-columns: 1fr;
   }
 }
 
 /* 追加予定写真のプレースホルダ枠 */
 figure.photo-placeholder {
-  margin: 28px 0;
+  margin: 0;
 }
 
 figure.photo-placeholder .frame {
-  border: 2px dashed var(--line);
+  border: 1.5px dashed var(--line);
   border-radius: 10px;
-  background: var(--bg-soft);
-  min-height: 180px;
+  background: var(--panel);
+  aspect-ratio: 4 / 3;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-soft);
-  font-size: 0.9rem;
-  padding: 24px;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  padding: 20px;
   text-align: center;
   line-height: 1.7;
+}
+
+figure.photo-placeholder.standalone {
+  margin: 26px auto;
+  max-width: 480px;
 }
 
 /* ---------- 図(インラインSVG) ---------- */
 
 figure.diagram {
   margin: 28px 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 18px 14px 6px;
 }
 
 figure.diagram svg {
@@ -208,163 +303,214 @@ figure.diagram svg {
   display: block;
 }
 
+figure.diagram figcaption {
+  text-align: center;
+  padding-bottom: 10px;
+}
+
 .dg-box {
-  fill: var(--diagram-box);
-  stroke: var(--diagram-stroke);
-  stroke-width: 1.5;
+  fill: var(--bg);
+  stroke: var(--ink-soft);
+  stroke-width: 1.4;
 }
 
 .dg-box-accent {
-  fill: var(--accent-soft);
+  fill: var(--accent-bg);
   stroke: var(--accent);
-  stroke-width: 1.5;
+  stroke-width: 1.4;
 }
 
 .dg-text {
-  fill: var(--text);
+  fill: var(--ink);
   font-family: inherit;
   font-size: 14px;
   font-weight: 700;
 }
 
 .dg-text-small {
-  fill: var(--text-soft);
+  fill: var(--ink-soft);
   font-family: inherit;
   font-size: 11.5px;
 }
 
 .dg-text-accent {
   fill: var(--accent);
-  font-family: inherit;
-  font-size: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
   font-weight: 700;
+  letter-spacing: 0.08em;
 }
 
 .dg-arrow {
-  stroke: var(--diagram-stroke);
-  stroke-width: 2;
+  stroke: var(--ink-soft);
+  stroke-width: 1.8;
   fill: none;
 }
 
 .dg-arrowhead {
-  fill: var(--diagram-stroke);
+  fill: var(--ink-soft);
 }
 
-.dg-wire-out { stroke: #d98a1f; stroke-width: 3; fill: none; }
-.dg-wire-gnd { stroke: #6b675e; stroke-width: 3; fill: none; }
-.dg-wire-vcc { stroke: #d33b30; stroke-width: 3; fill: none; }
+.dg-judge {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.dg-wire-out { stroke: var(--c-orange); stroke-width: 3; fill: none; }
+.dg-wire-gnd { stroke: var(--ink-soft); stroke-width: 3; fill: none; }
+.dg-wire-vcc { stroke: var(--c-red); stroke-width: 3; fill: none; }
 
 /* ---------- 動画 ---------- */
 
 .video-wrap {
-  margin: 28px 0;
+  margin: 26px 0;
 }
 
 .video-wrap video {
   width: 100%;
+  max-height: 400px;
   border-radius: 10px;
+  border: 1px solid var(--line);
   display: block;
   background: #000;
+  object-fit: contain;
 }
 
 .video-note {
-  font-size: 0.85rem;
-  color: var(--text-soft);
-  text-align: center;
-  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  margin-top: 8px;
 }
 
-/* ---------- 機材カード ---------- */
+/* ---------- 機材リスト ---------- */
 
 .gear-list {
   display: grid;
-  gap: 16px;
-  margin: 28px 0;
+  gap: 12px;
+  margin: 26px 0;
 }
 
 .gear-card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 18px 20px;
+  border-radius: 10px;
+  padding: 16px 18px;
 }
 
 .gear-card h3 {
-  margin: 0 0 6px;
-  font-size: 1rem;
+  margin: 0 0 4px;
+  font-size: 0.95rem;
 }
 
 .gear-card p {
-  margin: 0 0 10px;
-  font-size: 0.92rem;
-  color: var(--text-soft);
+  margin: 0 0 8px;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  line-height: 1.8;
 }
 
 .buy-link {
+  font-family: var(--mono);
   display: inline-block;
-  font-size: 0.85rem;
+  font-size: 0.76rem;
   font-weight: 700;
+  letter-spacing: 0.04em;
   color: var(--accent);
-  border: 1.5px solid var(--accent);
-  border-radius: 999px;
-  padding: 4px 16px;
+  background: var(--accent-bg);
+  border-radius: 6px;
+  padding: 4px 12px;
   text-decoration: none;
 }
 
 .buy-link.pending {
-  opacity: 0.55;
+  opacity: 0.6;
   pointer-events: none;
 }
 
 /* ---------- 補足ボックス ---------- */
 
 .note-box {
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 18px 22px;
-  margin: 28px 0;
-  font-size: 0.95rem;
+  background: var(--panel);
+  border-left: 3px solid var(--c-orange);
+  border-radius: 0 10px 10px 0;
+  padding: 16px 20px;
+  margin: 26px 0;
+  font-size: 0.92rem;
 }
 
 .note-box .note-title {
   font-weight: 700;
-  color: var(--accent);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
-/* ---------- テーブル(IRコード対応表など) ---------- */
+/* ---------- テーブル ---------- */
 
 .table-wrap {
   overflow-x: auto;
-  margin: 28px 0;
+  margin: 26px 0;
 }
 
 table {
   border-collapse: collapse;
   width: 100%;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
 }
 
 th,
 td {
   border: 1px solid var(--line);
-  padding: 8px 12px;
+  padding: 7px 14px;
   text-align: left;
   white-space: nowrap;
 }
 
+td code {
+  background: none;
+  padding: 0;
+}
+
+td.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.82rem;
+}
+
 th {
-  background: var(--bg-soft);
+  background: var(--panel);
+  font-size: 0.8rem;
+}
+
+/* 色ボタンの見本チップ */
+.chip {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  margin-right: 8px;
+  vertical-align: baseline;
 }
 
 /* ---------- フッター ---------- */
 
 footer {
   border-top: 1px solid var(--line);
-  margin-top: 80px;
-  padding: 32px 20px 48px;
-  text-align: center;
-  color: var(--text-soft);
-  font-size: 0.9rem;
+  margin-top: 88px;
+  padding: 30px 20px 44px;
+}
+
+.footer-inner {
+  max-width: 680px;
+  margin: 0 auto;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.footer-inner .beat-strip {
+  margin: 0 0 14px;
+}
+
+.footer-inner .beat-strip span {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
 }
