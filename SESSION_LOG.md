@@ -24,7 +24,8 @@
 - 【同セッション追記3】ジャンパー線(オス-メス)の写真が届き、機材セクションの最後のプレースホルダを差し替え。これで記事内のプレースホルダは全て解消。.gitignore はリポジトリ直下の撮影ファイル(/*.jpeg, /*.jpg, /*.MOV, /*.mov)を除外する形に拡大
 - 【同セッション追記4】ユーザー提供のAmazonリンク4本(ESP32/ブレッドボード/ジャンパー線/PIXELA WiFi USB)を機材カードに反映。「リンク準備中」表記と pending スタイルを削除。全リンクが amazon.co.jp へ301リダイレクトすることを確認済み
 - 【同セッション追記5】写真の表示方法を変更: 4:3トリミング(object-fit: cover)をやめ、常に画像全体が見える表示(max-height 340px、単独表示は380px、中央寄せ)に。キャプションも中央揃えに統一
-- 次にやること(ユーザー側): vercel.com でリポジトリをインポート(Root Directory=`site`、Framework=Other)してデプロイ。URLが決まったらREADMEに反映する
+- 【同セッション追記6】Vercelデプロイ完了(https://sensor-infrared.vercel.app/)を受けて最終仕上げ: ①Playwright(pip導入)で公開URLをスマホ390px/PC900px・ライト/ダークで全画面検証、横はみ出しなしを確認 ②「変な改行」2種を修正 — HTMLソース内の文中改行81箇所を結合(日本語文中に半角スペースが出る問題)、`word-break: auto-phrase` を見出し/リード/キャプション/リストに適用(「電/子部品」「ゲームオーバ/ー」等の不自然な折り返し解消) ③OGPメタタグ追加(og:title/description/url/image、twitter:card) ④READMEに公開URLを反映。これで最終版
+- プロジェクト完了。公開URL: https://sensor-infrared.vercel.app/(以後の更新は git push で自動デプロイ)
 
 ## 2026-07-27 - フォルダの共有状況の確認(コード作業なし)
 - 「このフォルダは共有されているか」という質問に対応: GitHubリポジトリ https://github.com/KeitoKuramochi/sensor_infrared に**パブリック(公開)**で共有されており、ローカルmainはorigin/mainと同期済み(d3c22caまでプッシュ済み)と確認

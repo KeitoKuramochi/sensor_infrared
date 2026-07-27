@@ -149,6 +149,20 @@ section {
   margin-top: 72px;
 }
 
+/* 日本語見出し・キャプション・箇条書きは文節単位で折り返す(対応ブラウザのみ) */
+h1,
+h2,
+h3,
+.hero .lead,
+figcaption,
+li {
+  word-break: auto-phrase;
+}
+
+p {
+  text-wrap: pretty;
+}
+
 h2 {
   font-size: 1.28rem;
   line-height: 1.5;
