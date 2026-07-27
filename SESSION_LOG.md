@@ -12,6 +12,13 @@
 - 次にやること
 ```
 
+## 2026-07-27 - Purple1/Pink/Purple2のIRコード対応を全ゲームコードで修正
+- ユーザーから「これが正しい並び」としてリモコン12色ボタンの正しいIRコード対応が提示された(Purple1=0x1FE708F / Pink=0x1FE906F / Purple2=0x1FEF807。この3つのラベル付けが従来ずれていた)
+- WiFi版 `firmware/color_memory_game_wifi/color_memory_game_wifi.ino` は既に修正済み(未コミット状態)だったため、残りを揃えた: ①スタンドアロン版 `firmware/color_memory_game/color_memory_game.ino` の COLORS[] の3コードを入れ替え(RGB値は色名どおりなので据え置き) ②`pc_game/game_server.py` の COLORS を読み順(Red→Green→Blue1→…→Purple2)に並べ替え、右列(col 2)の名前を row3=Purple1 / row4=Pink / row5=Purple2 に修正(hexは物理ボタンの見た目なので位置に据え置き)
+- site/index.html のIRコード表は赤・緑・青・黄のみ掲載で今回の3色を含まず、修正不要と確認
+- 両ファームウェアとも arduino-cli でコンパイル確認済み。game_server.py も12色・重複なしのサニティチェック済み
+- 次にやること: 前回の続き — PCをモバイルWiFiルーターに接続してIP確認 → `wifi_config.h` の `PC_SERVER_HOST` 更新 → `game_server.py` 起動 → ESP32へWiFiブリッジ版書き込み → 通しプレイ確認
+
 ## 2026-07-27 - 制作記事の公開ページ(site/)を作成、Vercel公開準備
 - 制作記録をVercelで公開したいという依頼に対応。プランモードで構成を確認(素のHTML+CSS 1ページ / 動画はリポジトリ内mp4 / このリポジトリ内に site/ / Amazonリンクはプレースホルダ / 図はSVGで自作)し、承認を得て実装
 - `site/index.html` + `site/style.css` を新規作成。構成: ヒーロー → デモ動画(videos/demo.mp4 プレースホルダ、poster付き) → 伝えたいこと(フィジカルAI) → きっかけ(講義のガチャロック工作) → 100均は部品の宝庫 → なぜLEDライト+リモコンか → 分解 → 機材紹介(Amazonリンク準備中表記) → 作り方(AIとの共同作業、安全面の注意書き、IRコード表、詰まりと解決) → まとめ+リポジトリリンク

@@ -32,22 +32,22 @@ from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
 
-# name/hex はリモコンの実物ボタン配置の並び順。
+# name/hex はリモコンの実物ボタン配置の並び順(左上から読み順)。
 # row/col はテンプレート側でリモコンの見た目を再現するためのグリッド位置
 # (0-indexed。実機は縦持ちでON/OFF/Modeが上段、色ボタンは3列×4行、row 2-5・col 0-2)。
 COLORS = [
-    {"name": "Blue1", "hex": "#3a5fe0", "row": 2, "col": 2},
-    {"name": "Purple2", "hex": "#5b3aa6", "row": 3, "col": 2},
-    {"name": "Purple1", "hex": "#9c3fa0", "row": 4, "col": 2},
-    {"name": "Pink", "hex": "#4a2570", "row": 5, "col": 2},
-    {"name": "Green", "hex": "#2fa85a", "row": 2, "col": 1},
-    {"name": "Lime", "hex": "#9ecc1f", "row": 3, "col": 1},
-    {"name": "SkyBlue", "hex": "#6fb8e8", "row": 4, "col": 1},
-    {"name": "Blue2", "hex": "#3a5cc4", "row": 5, "col": 1},
     {"name": "Red", "hex": "#d33b30", "row": 2, "col": 0},
+    {"name": "Green", "hex": "#2fa85a", "row": 2, "col": 1},
+    {"name": "Blue1", "hex": "#3a5fe0", "row": 2, "col": 2},
     {"name": "Orange", "hex": "#d98a1f", "row": 3, "col": 0},
+    {"name": "Lime", "hex": "#9ecc1f", "row": 3, "col": 1},
+    {"name": "Purple1", "hex": "#5b3aa6", "row": 3, "col": 2},
     {"name": "Yellow", "hex": "#cbc72e", "row": 4, "col": 0},
+    {"name": "SkyBlue", "hex": "#6fb8e8", "row": 4, "col": 1},
+    {"name": "Pink", "hex": "#9c3fa0", "row": 4, "col": 2},
     {"name": "LightPink", "hex": "#c9a8cf", "row": 5, "col": 0},
+    {"name": "Blue2", "hex": "#3a5cc4", "row": 5, "col": 1},
+    {"name": "Purple2", "hex": "#4a2570", "row": 5, "col": 2},
 ]
 COLOR_NAMES = [c["name"] for c in COLORS]
 
