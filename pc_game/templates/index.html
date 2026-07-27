@@ -24,9 +24,32 @@
   }
 {% endif %}
   h1 { font-size: 26px; margin: 0; letter-spacing: 0.02em; }
-  #logo { max-height: 72px; max-width: 420px; }
-  #resultArt { max-height: 150px; max-width: 90%; display: none; }
+  #logo { max-height: 88px; max-width: 440px; }
+  #resultArt { max-height: 135px; max-width: 90%; display: none; }
   #resultArt.show { display: block; }
+  #mascotImg { display: block; width: 62%; margin: 0 auto 10px; }
+  .heart-img { height: 19px; vertical-align: middle; margin-right: 3px; }
+  .heart-img.lost { filter: grayscale(1) brightness(0.4); }
+
+  /* EXCELLENT判定の瞬間のバースト。mix-blend-mode:screen で黒背景が消えて光だけ乗る */
+  #burstArt {
+    position: fixed;
+    top: 18%;
+    left: 0;
+    right: 0;
+    margin: 0 auto;
+    max-width: 340px;
+    mix-blend-mode: screen;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 5;
+  }
+  #burstArt.pop { animation: burstPop 500ms ease-out; }
+  @keyframes burstPop {
+    0%   { opacity: 0; transform: scale(0.4); }
+    30%  { opacity: 1; transform: scale(1.05); }
+    100% { opacity: 0; transform: scale(1.35); }
+  }
 
   /* --- 3カラムレイアウト: 左=遊び方 / 中央=ゲーム / 右=ランキング --- */
   #layout {
@@ -232,9 +255,11 @@
   <div id="unlockOverlay">クリックして音を有効化 🔊</div>
 
   <div id="judgmentPopup"></div>
+  {% if art.excellent %}<img id="burstArt" src="{{ art.excellent }}" alt="">{% endif %}
 
   <div id="layout">
   <aside id="howtoPanel" class="side-panel">
+    {% if art.mascot %}<img id="mascotImg" src="{{ art.mascot }}" alt="">{% endif %}
     <div class="panel-title">🎮 あそびかた</div>
     <ul>
       <li><b>ON</b> でスタート</li>
@@ -407,7 +432,23 @@ function popJudgment(text, kind) {
 }
 
 function renderLives(lives) {
-  livesEl.textContent = '❤️'.repeat(Math.max(0, lives)) + '🖤'.repeat(Math.max(0, STARTING_LIVES - lives));
+  const alive = Math.max(0, lives);
+  const lost = Math.max(0, STARTING_LIVES - lives);
+  if (ART.heart) {
+    livesEl.innerHTML =
+      `<img class="heart-img" src="${ART.heart}">`.repeat(alive) +
+      `<img class="heart-img lost" src="${ART.heart}">`.repeat(lost);
+  } else {
+    livesEl.textContent = '❤️'.repeat(alive) + '🖤'.repeat(lost);
+  }
+}
+
+const burstArtEl = document.getElementById('burstArt');
+function popBurst() {
+  if (!burstArtEl) return;
+  burstArtEl.classList.remove('pop');
+  void burstArtEl.offsetWidth; // reflow でアニメーションを再トリガー
+  burstArtEl.classList.add('pop');
 }
 
 function highlight(name) {
@@ -534,7 +575,8 @@ function render(state) {
   scoreEl.textContent = state.score;
   renderRanking(state.ranking || [], state.ranking_last_id);
   showResultArt(state.phase === 'game_over' ? 'gameover'
-                : state.phase === 'all_clear' ? 'allclear' : null);
+                : state.phase === 'all_clear' ? 'allclear'
+                : state.phase === 'stage_clear' ? 'stageclear' : null);
   bestEl.textContent = (state.best_stage > 0)
     ? `Best Stage: ${state.best_stage}/${TOTAL_STAGES} / Best Score: ${state.best_score}`
     : '';
@@ -543,7 +585,7 @@ function render(state) {
 
   // --- 効果音・演出トリガー (直前のstateとの差分で判定) ---
   if (state.judgment_seq > prev.judgment_seq) {
-    if (state.last_judgment === 'EXCELLENT') { popJudgment('EXCELLENT!', 'excellent'); playExcellent(state.combo); }
+    if (state.last_judgment === 'EXCELLENT') { popJudgment('EXCELLENT!', 'excellent'); playExcellent(state.combo); popBurst(); }
     else if (state.last_judgment === 'OK') { popJudgment('OK', 'ok'); playOk(); }
     else { popJudgment(state.last_judgment, 'fail'); playFail(); }
   }

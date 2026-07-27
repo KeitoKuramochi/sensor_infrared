@@ -35,3 +35,6 @@ __pycache__/
 
 # ゲームのランキングデータ(ローカル記録)
 /pc_game/ranking.json
+
+# 生成AI画像の元データ(加工済みを pc_game/static/img/ にコミット済み)
+/画像/

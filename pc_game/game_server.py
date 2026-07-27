@@ -329,22 +329,31 @@ def stage_ticker():
 
 
 # 生成AIで作った画像を pc_game/static/img/ に置くと、ページ再読み込みだけで反映される。
-# ファイル名と用途は pc_game/static/img/PROMPTS.md を参照。
+# ファイル名(拡張子は png/jpg/jpeg/webp のどれでも可)と用途は
+# pc_game/static/img/PROMPTS.md を参照。
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
-ART_FILES = {
-    "bg": "img/bg.png",            # ページ全体の背景
-    "logo": "img/logo.png",        # タイトルロゴ (h1テキストの代わり)
-    "gameover": "img/gameover.png",  # ゲームオーバー画面のイラスト
-    "allclear": "img/allclear.png",  # 全ステージクリア画面のイラスト
-}
+ART_KEYS = [
+    "bg",         # ページ全体の背景
+    "logo",       # タイトルロゴ (h1テキストの代わり)
+    "gameover",   # ゲームオーバー画面のイラスト
+    "allclear",   # 全ステージクリア画面のイラスト
+    "stageclear",  # ステージクリア画面のスタンプ
+    "excellent",  # EXCELLENT判定の瞬間のバースト演出
+    "mascot",     # 遊び方パネルのマスコット (透過PNG推奨)
+    "heart",      # ライフ表示のハート (透過PNG推奨)
+]
 
 
 def find_art():
-    return {
-        key: f"/static/{path}"
-        if os.path.exists(os.path.join(STATIC_DIR, path)) else None
-        for key, path in ART_FILES.items()
-    }
+    art = {}
+    for key in ART_KEYS:
+        art[key] = None
+        for ext in ("png", "jpg", "jpeg", "webp"):
+            rel = f"img/{key}.{ext}"
+            if os.path.exists(os.path.join(STATIC_DIR, rel)):
+                art[key] = f"/static/{rel}"
+                break
+    return art
 
 
 @app.route("/")
