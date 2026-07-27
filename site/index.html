@@ -445,6 +445,49 @@
     </p>
   </section>
 
+  <!-- ============================================================10. 後日談(2026-07-27 追記)============================================================ -->
+  <section id="postscript" style="--sec: var(--c-sky)">
+    <h2>後日談:実は「Bluetoothだけ」でつながった(2026-07-27 追記)</h2>
+    <p>
+      ここから下は、公開後の追記です。上の記事はそのまま残して、その後のアップデートを2つ報告します。
+    </p>
+
+    <h3>WiFiルーター、いらなかった</h3>
+    <p>
+      もともとESP32からPCへは「WiFi経由でボタンを送る」構成で、そのために専用のモバイルWiFiルーターまで用意していました。ところが公開後もAIと改良の相談をしていたら、「<strong>WiFiを使わなくても、Bluetooth(BLE)で直接PCに送れますよ</strong>」と教えてもらいました。試してみたら、ルーターなしのBluetooth接続だけであっさり動作。IPアドレスやWiFiパスワードの設定も丸ごと不要になって、セットアップは「ESP32の電源を入れるだけ」になりました。
+    </p>
+    <p>
+      おかげで持ち運びもラクに。いまは<strong>LEDライト+ESP32+モバイルバッテリー</strong>、この3点だけで動きます。
+    </p>
+    <figure class="photo compact">
+      <a class="zoom" href="images/setup-bt.jpg" target="_blank" rel="noopener">
+        <img src="images/setup-bt.jpg" alt="LEDライト、ESP32、モバイルバッテリーだけになった最小構成" loading="lazy">
+      </a>
+      <figcaption>現在の最小構成。ライト+ESP32+モバイルバッテリーの3点だけ。配線もぐっと減った(クリックで拡大)</figcaption>
+    </figure>
+    <p>
+      正直に書くと、最初は昔ながらのBluetooth(SPP)方式で作ってしまい、今のmacOSと相性が悪くて全然つながらない、という壁にぶつかりました。そこもAIと一緒にログを読みながら原因を切り分けていき、新しい方式のBLEに切り替えたら安定。「ハマったときに一緒にログを読んでくれる相手がいる」のは、電子工作初心者には本当に心強いです。
+    </p>
+
+    <h3>見た目も「ゲームらしく」大改造</h3>
+    <p>
+      画像生成AIにタイトルロゴ・背景・マスコットキャラまで作ってもらってゲームに組み込み、画面のデザインもAIに磨いてもらいました。その日のランキングやコンボ表示も追加されて、だいぶ「それっぽい」見た目に。家族や友達とスコアを競える感じになりました。
+    </p>
+    <figure class="photo compact">
+      <a class="zoom" href="images/game-screen-v2.jpg" target="_blank" rel="noopener">
+        <img src="images/game-screen-v2.jpg" alt="アップデート後のゲーム画面。タイトルロゴ、遊び方パネル、きょうのランキング付き" loading="lazy">
+      </a>
+      <figcaption>アップデート後のゲーム画面。左に遊び方、右に「きょうのランキング」(クリックで拡大)</figcaption>
+    </figure>
+
+    <div class="video-wrap">
+      <video controls preload="metadata" poster="images/demo-bt-poster.jpg" src="videos/demo-bt.mp4">
+        お使いのブラウザは動画再生に対応していません。
+      </video>
+      <p class="video-note">▶ Bluetooth版で遊んでいる様子(音が出ます)。ルーターなし・ケーブルはモバイルバッテリーだけ</p>
+    </div>
+  </section>
+
 </main>
 
 <footer>
