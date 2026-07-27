@@ -309,6 +309,7 @@ def post_button():
 # ペアリング不要。切断検知はBLEスタック内蔵なので、見つけて接続し直すだけでよい。
 
 BLE_DEVICE_NAME = "ColorMemoryGame"
+BLE_SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 BLE_BUTTON_CHAR_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
 
@@ -317,20 +318,32 @@ def ble_reader():
     未発見・切断時は再試行し続ける(ESP32の電源ON/OFFに自動で追従)。"""
     try:
         import asyncio
+        import bleak
         from bleak import BleakClient, BleakScanner
     except ImportError:
-        print("[BLE] bleak が無いためBluetooth受信は無効です (pip install bleak)")
+        print("[BLE] bleak が無いためBluetooth受信は無効です (pip install 'bleak<3')")
         return
+
+    if getattr(bleak, "__version__", "").startswith("3."):
+        # bleak 3.0.x はこのMacでスキャンが永久に固まる不具合を実機確認済み
+        print("[BLE] 警告: bleak 3.x はmacOSでスキャンが固まることがあります。"
+              "動かない場合は pip install 'bleak<3' を実行してください")
 
     print("[BLE] スキャンを開始します。初回はmacOSがBluetoothの使用許可を求めるので"
           "「許可」してください (システム設定 > プライバシーとセキュリティ > Bluetooth)")
+
+    def matches(device, adv):
+        uuids = [u.lower() for u in (adv.service_uuids or [])]
+        if BLE_SERVICE_UUID.lower() in uuids:
+            return True
+        return (device.name or adv.local_name) == BLE_DEVICE_NAME
 
     async def run():
         waiting_logged = False
         while True:
             try:
-                device = await BleakScanner.find_device_by_name(
-                    BLE_DEVICE_NAME, timeout=5.0)
+                device = await BleakScanner.find_device_by_filter(
+                    matches, timeout=5.0)
                 if device is None:
                     if not waiting_logged:
                         print(f"[BLE] ESP32「{BLE_DEVICE_NAME}」を探しています... "

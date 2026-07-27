@@ -129,12 +129,20 @@ void setup() {
       BUTTON_CHAR_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
   service->start();
 
+  // 広告パケット(31バイト)に128bit UUID(18B)と名前(17B)は同居できないため、
+  // 広告にはUUIDのみ、名前はスキャン応答に分けて入れる
   NimBLEAdvertising* adv = NimBLEDevice::getAdvertising();
-  adv->addServiceUUID(SERVICE_UUID);
-  adv->setName(BLE_DEVICE_NAME);
-  adv->start();
+  NimBLEAdvertisementData advData;
+  advData.setFlags(BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP);
+  advData.setCompleteServices(NimBLEUUID(SERVICE_UUID));
+  adv->setAdvertisementData(advData);
+  NimBLEAdvertisementData scanData;
+  scanData.setName(BLE_DEVICE_NAME);
+  adv->setScanResponseData(scanData);
+  bool advOk = adv->start();
 
-  Serial.printf("BLE advertising as: %s\n", BLE_DEVICE_NAME);
+  Serial.printf("BLE advertising as: %s (start=%s)\n", BLE_DEVICE_NAME,
+                advOk ? "OK" : "FAILED");
   drawStatus(String("BLE: ") + BLE_DEVICE_NAME, "Waiting for PC...");
 }
 

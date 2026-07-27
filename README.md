@@ -61,7 +61,7 @@ OLED一体型ボードの場合、画面の配線は不要です(I2C: SDA=21 / S
 ### 2. PC側(ゲームサーバー)
 
 ```bash
-pip install flask bleak
+pip install flask "bleak<3"   # bleak 3.x はmacOSでスキャンが固まる不具合あり
 python3 pc_game/game_server.py
 ```
 
