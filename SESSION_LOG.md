@@ -12,6 +12,14 @@
 - 次にやること
 ```
 
+## 2026-07-27 - Bluetooth ClassicからBLEへ全面切り替え(SPP不安定問題の根本解決)
+- 決定的な切り分け: ESP32をUSB経由でリセットして幽霊接続の可能性を排除した直後でも、サーバーが何度ポートを開き直してもRFCOMM(SPPのデータ通路)が確立しなかった(「ポートを開きました→8秒無音→張り直し」の無限ループ)。**現行macOSのBluetooth Classic (SPP)サポート自体が不安定**で、今日接続に成功したのは2回だけと判明。ポートの開き直しでは解決不能と判断
+- 対応: 通信方式をBLE (Bluetooth Low Energy) に全面切り替え。①新ファーム `firmware/color_memory_game_ble/`(NimBLE-Arduino 2.5.0、Nordic UART互換UUID、通知でボタン名送信、切断時は自動で再アドバタイズ)を作成、**arduino-cli upload(115200bps、921600は失敗)で実機に書き込み済み**。シリアルで「BLE advertising as: ColorMemoryGame」を確認 ②`game_server.py` のSPP受信(bt_reader/pyserial)をBLE受信(ble_reader/bleak 3.0.2)に置き換え。ペアリング不要・自動検出・自動再接続。ログのラインバッファリング修正も適用済み
+- BLEのメリット: macOSが第一級サポート(CoreBluetooth)、ペアリング不要、切断検知はBLEスタック内蔵(supervision timeout)なのでアプリ側ハートビート不要、フラッシュも89%→55%に減少
+- 未検証の一点: この裏側シェル環境にはmacOSのBluetooth権限が無い(ダイアログを出せない)ため、PC側のBLE接続だけは実機確認できていない。**ユーザーが自分のターミナルから `python3 pc_game/game_server.py` を起動し、初回のBluetooth許可ダイアログを「許可」すれば繋がるはず**
+- README.mdをBLE構成に更新(ペアリング手順を削除、NimBLE-Arduinoライブラリ追記、SPP版は旧版として残置)
+- 次にやること: ユーザーが自分のターミナルでサーバー起動 → Bluetooth許可 → 「リンク正常」ログ確認 → 通しプレイ
+
 ## 2026-07-27 - 幽霊接続問題を双方向ハートビートで解決(Bluetooth安定化の完成形)
 - ユーザーのサーバーログで新事実: 「ポートを開きました」→8秒無音→「張り直します」の無限ループになっており、PINGすら届いていなかった
 - 真因=**ESP32側の幽霊接続**: サーバーをCtrl+Cで止めてもESP32に切断通知が届かないことがあり、ESP32は旧接続(1台しか持てない)を保持したまま新しい接続を拒否し続ける。macOS側はポートを開けてもデータ通路(SPP)が確立しない

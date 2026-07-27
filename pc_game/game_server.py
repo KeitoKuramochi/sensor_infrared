@@ -12,8 +12,8 @@ ESP32はIRリモコンのボタンを受信してこのサーバーに POST /but
     ブラウザで http://localhost:8000/ を開く
 
 ESP32からのボタン入力は2経路どちらでも受けられる:
-  - Bluetooth版 (firmware/color_memory_game_bt): Macとペアリング済みなら
-    /dev/cu.ColorMemoryGame を自動検出してシリアル受信する(推奨。WiFi設定不要)
+  - BLE版 (firmware/color_memory_game_ble): 「ColorMemoryGame」を自動で見つけて
+    接続する(推奨。ペアリングもWiFi設定も不要。pip install bleak が必要)
   - WiFi版 (firmware/color_memory_game_wifi): このPCのIPの :8000/button に
     ボタン名がPOSTされてくる
 
@@ -27,17 +27,12 @@ ESP32からのボタン入力は2経路どちらでも受けられる:
     - ライフが尽きたらゲームオーバー、5ステージ全部クリアしたらALL CLEAR
 """
 
-import glob
 import random
+import sys
 import threading
 import time
 
 from flask import Flask, jsonify, render_template, request
-
-try:
-    import serial  # pyserial (Bluetooth受信用。無くてもWiFi/ブラウザ経由は動く)
-except ImportError:
-    serial = None
 
 app = Flask(__name__)
 
@@ -309,77 +304,70 @@ def post_button():
     return jsonify({"ok": True})
 
 
-# --- Bluetooth受信 (firmware/color_memory_game_bt 用) ---
-# ESP32をMacとペアリングすると /dev/cu.ColorMemoryGame というポートが生える。
-# それを開いた時点でBluetooth接続が確立し、ボタン名が1行ずつ流れてくる。
+# --- BLE受信 (firmware/color_memory_game_ble 用) ---
+# ESP32はBLEで「ColorMemoryGame」としてアドバタイズし、ボタン名を通知で送ってくる。
+# ペアリング不要。切断検知はBLEスタック内蔵なので、見つけて接続し直すだけでよい。
 
-BT_PORT_PATTERNS = ["/dev/cu.ColorMemoryGame*", "/dev/tty.ColorMemoryGame*"]
-
-# ファームウェアは接続中2秒ごとに "PING" を送ってくる(死活監視)。
-# これだけの時間なにも届かなければ、接続が半死に状態(ESP32の電源断・再起動時に
-# macOS側へエラーが上がらず無音になるだけのことがある)とみなしてポートを開き直す。
-BT_SILENCE_TIMEOUT_SEC = 8
+BLE_DEVICE_NAME = "ColorMemoryGame"
+BLE_BUTTON_CHAR_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
 
 
-def find_bt_port():
-    for pattern in BT_PORT_PATTERNS:
-        matches = glob.glob(pattern)
-        if matches:
-            return matches[0]
-    return None
-
-
-def bt_reader():
-    """BluetoothシリアルからESP32のボタン名を読み、HTTPと同じ handle_button に流す。
-    ポート未検出・切断・無音時は再試行し続ける(ESP32の電源ON/OFFに追従)。"""
-    if serial is None:
-        print("[BT] pyserial が無いためBluetooth受信は無効です (pip install pyserial)")
+def ble_reader():
+    """BLE通知でESP32のボタン名を受け取り、HTTPと同じ handle_button に流す。
+    未発見・切断時は再試行し続ける(ESP32の電源ON/OFFに自動で追従)。"""
+    try:
+        import asyncio
+        from bleak import BleakClient, BleakScanner
+    except ImportError:
+        print("[BLE] bleak が無いためBluetooth受信は無効です (pip install bleak)")
         return
-    waiting_logged = False
-    while True:
-        port = find_bt_port()
-        if port is None:
-            if not waiting_logged:
-                print("[BT] Bluetoothポート待機中... "
-                      "(Macの設定でESP32「ColorMemoryGame」をペアリングしてください)")
-                waiting_logged = True
-            time.sleep(3)
-            continue
-        try:
-            with serial.Serial(port, 115200, timeout=1, write_timeout=2) as ser:
-                print(f"[BT] ポートを開きました: {port} (ESP32からの信号待ち...)")
-                waiting_logged = False
-                last_rx = time.time()
-                last_tx = 0.0
-                link_confirmed = False
-                while True:
-                    # こちらからも2秒ごとにPINGを送る。ESP32はこれが8秒途絶えた接続を
-                    # 「幽霊接続」とみなして自分から切断し、次の接続を受け付けられるようにする
-                    if time.time() - last_tx >= 2:
-                        ser.write(b"PING\n")
-                        last_tx = time.time()
-                    name = ser.readline().decode(errors="ignore").strip()
+
+    print("[BLE] スキャンを開始します。初回はmacOSがBluetoothの使用許可を求めるので"
+          "「許可」してください (システム設定 > プライバシーとセキュリティ > Bluetooth)")
+
+    async def run():
+        waiting_logged = False
+        while True:
+            try:
+                device = await BleakScanner.find_device_by_name(
+                    BLE_DEVICE_NAME, timeout=5.0)
+                if device is None:
+                    if not waiting_logged:
+                        print(f"[BLE] ESP32「{BLE_DEVICE_NAME}」を探しています... "
+                              "(電源が入っていれば自動で見つかります)")
+                        waiting_logged = True
+                    await asyncio.sleep(2)
+                    continue
+
+                disconnected = asyncio.Event()
+                loop = asyncio.get_running_loop()
+
+                def on_disconnect(_client):
+                    loop.call_soon_threadsafe(disconnected.set)
+
+                def on_notify(_char, data):
+                    name = bytes(data).decode(errors="ignore").strip()
                     if name:
-                        last_rx = time.time()
-                        if not link_confirmed:
-                            link_confirmed = True
-                            print("[BT] ESP32からの受信を確認 — リンク正常、リモコン操作OKです")
-                        if name == "PING":
-                            continue
-                        print(f"[BT] Button: {name}")
+                        print(f"[BLE] Button: {name}")
                         handle_button(name)
-                    elif time.time() - last_rx > BT_SILENCE_TIMEOUT_SEC:
-                        print("[BT] 応答が途絶えました — 接続を張り直します")
-                        break  # withを抜けてポートを閉じ、開き直す
-            time.sleep(1)
-        except (serial.SerialException, OSError) as e:
-            print(f"[BT] ポートを開けませんでした/切断されました ({e})")
-            print("[BT] 3秒後に再試行します (ESP32の起動直後はBluetoothが"
-                  "立ち上がるまで1〜2分かかることがあります)")
-            time.sleep(3)
+
+                async with BleakClient(
+                        device, disconnected_callback=on_disconnect) as client:
+                    print("[BLE] 接続しました — リンク正常、リモコン操作OKです")
+                    waiting_logged = False
+                    await client.start_notify(BLE_BUTTON_CHAR_UUID, on_notify)
+                    await disconnected.wait()
+                print("[BLE] 切断されました — 再接続します")
+            except Exception as e:
+                print(f"[BLE] エラー: {e} — 3秒後に再接続します")
+                await asyncio.sleep(3)
+
+    asyncio.run(run())
 
 
 if __name__ == "__main__":
+    # ログをファイルにリダイレクトしても [BLE] メッセージが即座に出るようにする
+    sys.stdout.reconfigure(line_buffering=True)
     threading.Thread(target=stage_ticker, daemon=True).start()
-    threading.Thread(target=bt_reader, daemon=True).start()
+    threading.Thread(target=ble_reader, daemon=True).start()
     app.run(host="0.0.0.0", port=8000, debug=False)

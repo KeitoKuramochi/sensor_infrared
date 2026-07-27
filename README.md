@@ -11,11 +11,12 @@
 ```mermaid
 flowchart LR
     R["リモコン<br>(12色 + ON/OFF ボタン)"] -- 赤外線 --> E["ESP32<br>VS838で受信して<br>ボタン名をPCへ転送"]
-    E -- "Bluetooth (SPP)" --> P["PC<br>Flaskサーバー :8000<br>ゲームロジック・判定"]
+    E -- "Bluetooth (BLE)" --> P["PC<br>Flaskサーバー :8000<br>ゲームロジック・判定"]
     P --> B["ブラウザ<br>16拍のリズムレーン表示"]
 ```
 
-ESP32は「どのボタンが押されたか」をBluetoothでPCに送るだけのブリッジ役。
+ESP32は「どのボタンが押されたか」をBluetooth (BLE) でPCに送るだけのブリッジ役。
+ペアリング不要で、サーバーがESP32を自動で見つけて接続します。
 ゲーム本体(パターン生成・タイミング判定・スコア・ライフ管理)はPC側のPythonで動き、
 画面はブラウザに表示されます。WiFi経由で送る旧構成(`color_memory_game_wifi`)も残してあり、
 サーバーはどちらの経路からの入力も受け付けます。
@@ -52,25 +53,23 @@ OLED一体型ボードの場合、画面の配線は不要です(I2C: SDA=21 / S
 2. ライブラリマネージャーから以下をインストール
    - `IRremoteESP8266`(crankyoldgit)
    - `Adafruit SSD1306` / `Adafruit GFX Library`
-3. `firmware/color_memory_game_bt/color_memory_game_bt.ino` をESP32に書き込み
+   - `NimBLE-Arduino`(h2zero)
+3. `firmware/color_memory_game_ble/color_memory_game_ble.ino` をESP32に書き込み
 
-起動するとOLEDに `BT: ColorMemoryGame / Waiting for PC...` と表示されます。
+起動するとOLEDに `BLE: ColorMemoryGame / Waiting for PC...` と表示されます。
 
-### 2. Macとペアリング(初回のみ)
-
-システム設定 > Bluetooth を開き、「ColorMemoryGame」を接続します。
-ペアリングされると `/dev/cu.ColorMemoryGame` というシリアルポートが生えます。
-
-### 3. PC側(ゲームサーバー)
+### 2. PC側(ゲームサーバー)
 
 ```bash
-pip install flask pyserial
+pip install flask bleak
 python3 pc_game/game_server.py
 ```
 
-ブラウザで `http://localhost:8000/` を開くとゲーム画面が表示されます。
-サーバーがBluetoothポートを自動検出して接続し、ESP32のOLEDが `PC connected!` に
-変われば準備完了です(ESP32の電源を入れ直しても自動で再接続します)。
+ペアリングは不要です。サーバーがBLEで「ColorMemoryGame」を自動で見つけて接続します
+(macOS初回はBluetoothの使用許可を求められるので「許可」してください)。
+ログに「リンク正常、リモコン操作OKです」と出て、ESP32のOLEDが `PC connected!` に
+変われば準備完了。ブラウザで `http://localhost:8000/` を開くとゲーム画面が表示されます。
+ESP32の電源を入れ直しても自動で再接続します。
 
 <details>
 <summary>旧構成: WiFi経由で使う場合(color_memory_game_wifi)</summary>
@@ -90,13 +89,13 @@ python3 pc_game/game_server.py
 
 </details>
 
-### 4. リモコンのIRコードが違う場合
+### 3. リモコンのIRコードが違う場合
 
 リモコンの個体・製品が違うとIRコードも異なります。その場合は:
 
 1. スケッチを書き込んだ状態でシリアルモニタ(115200bps)を開く
 2. リモコンのボタンを押すと `Unknown code: 0x......` と表示される
-3. その値を `color_memory_game_bt.ino` の `COLORS[]` / `BTN_ON_CODE` / `BTN_OFF_CODE` /
+3. その値を `color_memory_game_ble.ino` の `COLORS[]` / `BTN_ON_CODE` / `BTN_OFF_CODE` /
    `BTN_MODE_CODE` に書き写す
 
 ## 遊び方
@@ -116,7 +115,8 @@ python3 pc_game/game_server.py
 
 ```
 firmware/
-├── color_memory_game_bt/     # ★ 現行版: IR受信→Bluetoothブリッジ(これを書き込む)
+├── color_memory_game_ble/    # ★ 現行版: IR受信→BLEブリッジ(これを書き込む)
+├── color_memory_game_bt/     # 旧版: Bluetooth Classic (SPP)版(現行macOSでは接続が不安定)
 ├── color_memory_game_wifi/   # 旧構成: IR受信→WiFiブリッジ(WiFi環境がある場合の代替)
 ├── color_memory_game/        # 旧版: ESP32単体で完結する色記憶ゲーム(要WS2812配線・未解決)
 ├── oled_i2c_scan/            # OLEDのI2Cピンを特定する診断ツール
