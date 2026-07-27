@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>100円ショップのLEDライトとリモコンでリズムゲームを作った</title>
+<meta name="description" content="100円ショップで売っているリモコン式LEDライト(300円)を分解して、ESP32とAIの力を借りてリズムゲームを作った制作記録。フィジカルAI的なものづくりのすすめ。">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎮</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <span class="kicker">フィジカルAI工作記</span>
+    <h1>100円ショップのLEDライトとリモコンで<br>リズムゲームを作った</h1>
+    <p class="lead">
+      100円ショップで売っている「リモコン式LEDライト」(300円)。
+      これを分解して、AIに聞きながら配線とプログラムを組んだら、
+      リモコンをコントローラーにしたリズムゲームになりました。
+      その制作記録と、「AI × ハードウェア」の面白さの話です。
+    </p>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============================================================
+       1. デモ動画
+       動画は site/videos/demo.mp4 を置くと再生できるようになります。
+       ============================================================ -->
+  <section id="demo">
+    <h2>実際に動く様子はこちら</h2>
+    <p>
+      リモコンのボタンを押すと、画面の色とリズムに合わせて判定が出ます。
+      まずは動いているところを見てください。
+    </p>
+    <div class="video-wrap">
+      <video controls preload="metadata" poster="images/wiring-1.jpg" src="videos/demo.mp4">
+        お使いのブラウザは動画再生に対応していません。
+      </video>
+      <p class="video-note">▶ リモコンでリズムよく色ボタンを押している様子(音が出ます)</p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       2. この記事で伝えたいこと
+       ============================================================ -->
+  <section id="message">
+    <h2>この記事で伝えたいこと</h2>
+    <p>
+      AIの使い方というと、コードを書いてもらう・文章をまとめてもらうといった
+      <strong>「ソフトの中で完結する使い方」</strong>に寄りがちです。
+      でも、AIにハードウェアの知識を教えてもらいながら手を動かすと、
+      <strong>現実の空間で動くもの</strong>が作れます。
+    </p>
+    <p>
+      材料は、ほぼ100円ショップ。ESP32というマイコンとジャンパー線・ブレッドボードだけは
+      別途必要ですが、それでも数千円あればお釣りがきます。
+      「電子工作はハードルが高そう」と思っている人にこそ、
+      <strong>行動をちょっと変えるだけで、こういう面白い使い方ができる</strong>というのを知ってほしくて、
+      この記事を書きました。いわば「フィジカルAI」的なものづくりのすすめです。
+    </p>
+  </section>
+
+  <!-- ============================================================
+       3. きっかけ
+       ============================================================ -->
+  <section id="origin">
+    <h2>きっかけ:講義で「AIと一緒にものを作る」体験をした</h2>
+    <p>
+      最初のきっかけは大学の講義でした。最終回の課題で、
+      <strong>段ボールで作ったガチャガチャのロック機構</strong>を、ESP32とサーボモーターで動かし、
+      スマホからの仮想通貨の支払いをトリガーにしてロックを開ける、という工作をしたんです。
+    </p>
+    <p>
+      このとき初めて「AIにやり方を聞きながら、実物のものを作る」という体験をしました。
+      配線もプログラムも初めてでしたが、分からないことをその場でAIに聞けるので、
+      想像していたよりずっとスムーズに形になりました。
+    </p>
+    <p>
+      それが面白くて、「他にも何か面白いことができないかな」と思っていたところで
+      出会ったのが、100円ショップで売られていた<strong>リモコン式のLEDライト(300円)</strong>でした。
+      「これをちょっと改造したら、自分なりの面白いものが作れるんじゃないか?」——
+      そう思ったのがこのプロジェクトの始まりです。
+    </p>
+  </section>
+
+  <!-- ============================================================
+       4. 100均は電子部品の宝庫
+       ============================================================ -->
+  <section id="treasure">
+    <h2>100円ショップは「電子部品の宝庫」だった</h2>
+    <p>
+      そういう目で100円ショップを歩いてみると、
+      <strong>「電子部品」としては売られていないけれど、中に使える部品が入っていそうなもの</strong>が
+      たくさんあることに気づきます。たとえば:
+    </p>
+    <ul>
+      <li><strong>人感センサーライト</strong> → 熱源を感知するセンサーが入っている</li>
+      <li><strong>リモコン式のライト</strong> → 赤外線を受け取る受信部品が入っている</li>
+      <li><strong>電動消しゴム</strong> → 小型モーターが入っている</li>
+      <li><strong>モバイルバッテリー</strong> → 小さなバッテリーセルが入っていて、自作物の電源に使えそう</li>
+    </ul>
+
+    <figure class="photo">
+      <img src="images/daiso-others.jpg" alt="100円ショップで見つけた、部品として使えそうなもの(おもちゃの車とLEDキーホルダーライト)" loading="lazy">
+      <figcaption>100均で見つけた「部品として使えそうなもの」たち。おもちゃの車、LEDキーホルダーライトなど</figcaption>
+    </figure>
+
+    <!-- 📷 追加写真プレースホルダ: 100円ショップの売り場・パッケージ入り状態の写真
+         写真を site/images/ に置いたら、下の .photo-placeholder ブロックを
+         上の figure.photo と同じ形(img + figcaption)に差し替えてください。 -->
+    <figure class="photo-placeholder">
+      <div class="frame">📷 ここに「100円ショップで売られているパッケージ入り状態」の写真が入ります</div>
+      <figcaption>売り場で見つけたときの様子(写真は後日追加予定)</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================================================
+       5. なぜLEDライト+リモコンを選んだか
+       ============================================================ -->
+  <section id="why">
+    <h2>なぜ「LEDライト+リモコン」を選んだのか</h2>
+    <p>
+      その中で今回選んだのが、このLEDライトとリモコンのセットです。
+      「リモコンのボタンを押すとLEDの色が変わる」ということは、
+      <strong>赤外線通信でやりとりしているんだろうな</strong>、となんとなく想像できました。
+    </p>
+    <p>そこから、いろいろなアイデアが浮かびました。</p>
+    <ul>
+      <li>赤外線をずっと飛ばしておけば、<strong>スパイ映画の赤いレーザーの罠</strong>みたいに、人が通ったのを検知できるんじゃないか?</li>
+      <li>ボタンがこれだけたくさんあるなら、<strong>PCのショートカットキー</strong>をいろいろ登録できるんじゃないか?</li>
+    </ul>
+    <p>
+      「これだけ遊べそうなものが300円で買える」——それがこのセットを買った理由です。
+    </p>
+
+    <figure class="photo">
+      <img src="images/remote.jpg" alt="付属のリモコン。ON/OFF/Modeボタンと12色のカラーボタンが並んでいる" loading="lazy">
+      <figcaption>付属のリモコン。ON / OFF / Mode に加えて<strong>12色のカラーボタン</strong>が並ぶ。この「色の多さ」が後でゲームに化ける</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================================================
+       6. 開けてみた
+       ============================================================ -->
+  <section id="teardown">
+    <h2>開けてみた</h2>
+    <p>
+      さっそく分解してみると、中はこんな感じでした。
+      小さな基板の上に、<strong>赤外線を受け取る受信部品</strong>(黒いドーム型のパーツ)と、
+      <strong>色が変わるRGB LED</strong>が載っています。
+    </p>
+
+    <div class="photo-row">
+      <figure class="photo">
+        <img src="images/led-pcb.jpg" alt="LEDライトを分解した中身。CHS005RGB-02と書かれた基板に赤外線受信部とRGB LEDが載っている" loading="lazy">
+        <figcaption>ケースを開けたところ。左の黒いドームが赤外線受信部、中央がRGB LED</figcaption>
+      </figure>
+      <figure class="photo">
+        <img src="images/led-pcb-soldered.jpg" alt="基板の拡大。電池ボックスへの配線をはんだ付けしてある" loading="lazy">
+        <figcaption>基板の拡大。あとで信号を取り出すために配線をはんだ付けした状態</figcaption>
+      </figure>
+    </div>
+
+    <p>
+      リモコンには12色ぶんのボタンがある。つまりこの受信部品から信号を取り出せれば、
+      <strong>12個のボタンがあるコントローラー</strong>として使えるということです。
+      せっかく色がたくさんあるんだから——ということで、
+      <strong>「リモコンで遊ぶリズムゲーム」</strong>を作ることに決めました。
+    </p>
+  </section>
+
+  <!-- ============================================================
+       7. 使った機材
+       ============================================================ -->
+  <section id="gear">
+    <h2>使った機材</h2>
+    <p>
+      今回使ったのは以下の機材です。主役のLEDライト以外はAmazonなどで手に入ります
+      (リンクは準備中です。後日、実際に購入したものに差し替えます)。
+    </p>
+
+    <div class="gear-list">
+      <div class="gear-card">
+        <h3>ESP32 開発ボード(OLEDディスプレイ付き)</h3>
+        <p>
+          今回の頭脳。WiFiとBluetoothを内蔵した小さなコンピュータ(マイコン)で、
+          プログラムを書き込んで自由に動かせます。今回は小さな画面(OLED)が最初から
+          くっついているタイプを使いました。1,000〜2,000円程度。
+        </p>
+        <a class="buy-link pending" href="#">Amazonで見る(リンク準備中)</a>
+      </div>
+
+      <div class="gear-card">
+        <h3>ブレッドボード</h3>
+        <p>
+          はんだ付けなしで部品の足を差して回路を組める板。
+          試行錯誤しながら配線を変えられるので、初心者の味方です。
+        </p>
+        <a class="buy-link pending" href="#">Amazonで見る(リンク準備中)</a>
+      </div>
+
+      <div class="gear-card">
+        <h3>ジャンパー線</h3>
+        <p>
+          部品と部品をつなぐための線。オス-オス、オス-メスなど何種類かセットになったものを
+          持っておくと便利です。
+        </p>
+        <a class="buy-link pending" href="#">Amazonで見る(リンク準備中)</a>
+      </div>
+
+      <div class="gear-card">
+        <h3>PIXELA WiFi USBアダプタ</h3>
+        <p>
+          PCのUSBポートに挿すとWiFi機能を追加できるアダプタ。
+          今回はESP32とPCを同じWiFiにつなぐために使いました。
+        </p>
+        <a class="buy-link pending" href="#">Amazonで見る(リンク準備中)</a>
+      </div>
+
+      <div class="gear-card">
+        <h3>100円ショップのLEDライト+リモコン(主役)</h3>
+        <p>
+          今回の主役。リモコン付きで300円。中の赤外線受信部品とリモコンをそのまま使います。
+        </p>
+      </div>
+    </div>
+
+    <figure class="photo">
+      <img src="images/parts-all.jpg" alt="今回使った部品一式。LEDライト本体、分解した中身、ESP32、リモコン" loading="lazy">
+      <figcaption>今回の登場人物たち。左からLEDライト本体とフタ、分解した中身(右上)、ESP32(中央)、リモコン(下)</figcaption>
+    </figure>
+
+    <figure class="photo">
+      <img src="images/esp32-oled.jpg" alt="OLEDディスプレイ付きのESP32開発ボードをブレッドボードに載せたところ" loading="lazy">
+      <figcaption>ESP32開発ボード。中央の黒い画面がOLEDディスプレイ(基板に一体型)</figcaption>
+    </figure>
+
+    <!-- 📷 追加写真プレースホルダ: ジャンパー線などの機材写真 -->
+    <figure class="photo-placeholder">
+      <div class="frame">📷 ここに「ジャンパー線などの機材」の写真が入ります</div>
+      <figcaption>ジャンパー線・ブレッドボードなどの機材(写真は後日追加予定)</figcaption>
+    </figure>
+  </section>
+
+  <!-- ============================================================
+       8. 作り方の流れ
+       ============================================================ -->
+  <section id="howto">
+    <h2>どう作ったか:AIとの共同作業</h2>
+
+    <h3>全体の仕組み</h3>
+    <p>
+      完成形の仕組みはこうなっています。リモコンの赤外線をESP32が受け取り、
+      「どのボタンが押されたか」をWiFiでPCに送ります。ゲームの画面と判定はPC側で動きます。
+    </p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 680 170" role="img" aria-label="システム構成図: リモコンから赤外線でESP32へ、ESP32からWiFiでPCへ信号が流れる">
+        <!-- リモコン -->
+        <rect class="dg-box" x="10" y="40" width="150" height="90" rx="10"/>
+        <text class="dg-text" x="85" y="78" text-anchor="middle">リモコン</text>
+        <text class="dg-text-small" x="85" y="100" text-anchor="middle">12色+ON/OFFボタン</text>
+        <!-- 矢印1 -->
+        <line class="dg-arrow" x1="165" y1="85" x2="245" y2="85"/>
+        <polygon class="dg-arrowhead" points="245,85 233,79 233,91"/>
+        <text class="dg-text-accent" x="205" y="70" text-anchor="middle">赤外線</text>
+        <!-- ESP32 -->
+        <rect class="dg-box-accent" x="250" y="40" width="170" height="90" rx="10"/>
+        <text class="dg-text" x="335" y="72" text-anchor="middle">ESP32</text>
+        <text class="dg-text-small" x="335" y="92" text-anchor="middle">受信部品(VS838)で受けて</text>
+        <text class="dg-text-small" x="335" y="110" text-anchor="middle">ボタン名をPCへ転送</text>
+        <!-- 矢印2 -->
+        <line class="dg-arrow" x1="425" y1="85" x2="505" y2="85"/>
+        <polygon class="dg-arrowhead" points="505,85 493,79 493,91"/>
+        <text class="dg-text-accent" x="465" y="70" text-anchor="middle">WiFi</text>
+        <!-- PC -->
+        <rect class="dg-box" x="510" y="40" width="160" height="90" rx="10"/>
+        <text class="dg-text" x="590" y="72" text-anchor="middle">PC</text>
+        <text class="dg-text-small" x="590" y="92" text-anchor="middle">ゲーム本体(Python)</text>
+        <text class="dg-text-small" x="590" y="110" text-anchor="middle">ブラウザに画面を表示</text>
+      </svg>
+      <figcaption>全体の構成。リモコン → 赤外線 → ESP32 → WiFi → PC(ブラウザのゲーム画面)</figcaption>
+    </figure>
+
+    <h3>ステップ1:AIに「何を準備すればいい?」から聞く</h3>
+    <p>
+      作業はすべて、AI(Claude)に
+      <strong>「こういうことがしたい。何を準備すればいい?」</strong>と聞くところから始めました。
+      必要な部品、配線のつなぎ方、ESP32へのプログラムの書き込み方——
+      知識ゼロの状態から、対話しながら一歩ずつ進めていきます。
+    </p>
+
+    <div class="note-box">
+      <div class="note-title">⚠️ 安全面について</div>
+      電気を扱うので、危険がないかはAIに注意点を聞くだけでなく、
+      教えてもらったリンク先を読んだり自分で検索したりして、
+      <strong>最後の事実確認は必ず自分で</strong>行いました。
+      AIは強力な先生ですが、鵜呑みにせず裏を取る。これはハードウェアでは特に大事です。
+    </div>
+
+    <h3>ステップ2:受信部品をESP32につなぐ</h3>
+    <p>
+      分解した基板の受信部品(VS838)から3本の線を取り出し、ESP32につなぎます。
+      配線はたったこれだけです。
+    </p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 680 250" role="img" aria-label="配線図: VS838のOUTをESP32のGPIO27へ、GNDをGNDへ、VCCを3V3へ接続">
+        <!-- VS838 -->
+        <rect class="dg-box" x="20" y="30" width="200" height="185" rx="10"/>
+        <text class="dg-text" x="120" y="58" text-anchor="middle">赤外線受信部品</text>
+        <text class="dg-text-small" x="120" y="76" text-anchor="middle">VS838(ドーム正面から見て)</text>
+        <!-- dome -->
+        <circle class="dg-box-accent" cx="120" cy="120" r="28"/>
+        <!-- legs -->
+        <line class="dg-wire-out" x1="100" y1="148" x2="100" y2="175"/>
+        <line class="dg-wire-gnd" x1="120" y1="148" x2="120" y2="175"/>
+        <line class="dg-wire-vcc" x1="140" y1="148" x2="140" y2="175"/>
+        <text class="dg-text-small" x="100" y="195" text-anchor="middle">OUT</text>
+        <text class="dg-text-small" x="120" y="212" text-anchor="middle">GND</text>
+        <text class="dg-text-small" x="140" y="195" text-anchor="middle">VCC</text>
+        <!-- wires to ESP32 -->
+        <path class="dg-wire-out" d="M 230 90 C 320 90, 360 90, 448 90"/>
+        <path class="dg-wire-gnd" d="M 230 123 C 320 123, 360 123, 448 123"/>
+        <path class="dg-wire-vcc" d="M 230 156 C 320 156, 360 156, 448 156"/>
+        <text class="dg-text-small" x="339" y="82" text-anchor="middle">OUT(信号)</text>
+        <text class="dg-text-small" x="339" y="115" text-anchor="middle">GND(マイナス)</text>
+        <text class="dg-text-small" x="339" y="148" text-anchor="middle">VCC(電源)</text>
+        <!-- ESP32 -->
+        <rect class="dg-box-accent" x="455" y="30" width="205" height="185" rx="10"/>
+        <text class="dg-text" x="557" y="58" text-anchor="middle">ESP32</text>
+        <text class="dg-text-small" x="470" y="95" text-anchor="start">● GPIO27</text>
+        <text class="dg-text-small" x="470" y="128" text-anchor="start">● GND</text>
+        <text class="dg-text-small" x="470" y="161" text-anchor="start">● 3V3(3.3V)</text>
+        <text class="dg-text-small" x="557" y="198" text-anchor="middle">画面(OLED)は基板に一体型</text>
+      </svg>
+      <figcaption>配線図。VS838の OUT → GPIO27、GND → GND、VCC → 3V3 の3本だけ</figcaption>
+    </figure>
+
+    <h3>ステップ3:リモコンの「暗号」を解読する</h3>
+    <p>
+      リモコンのボタンはそれぞれ固有の信号(コード)を赤外線で送っています。
+      ESP32に受信プログラムを書き込み、シリアルモニタという画面で受信した値を見ながら
+      ボタンを1つずつ押していくと、<strong>どのボタンがどのコードか</strong>の対応表が作れます。
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>ボタン</th><th>受信コード</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>ON</td><td><code>0x1FE48B7</code></td></tr>
+          <tr><td>OFF</td><td><code>0x1FE58A7</code></td></tr>
+          <tr><td>赤</td><td><code>0x1FE20DF</code></td></tr>
+          <tr><td>緑</td><td><code>0x1FEA05F</code></td></tr>
+          <tr><td>青</td><td><code>0x1FE609F</code></td></tr>
+          <tr><td>黄</td><td><code>0x1FE50AF</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>
+      こうして12色+ON/OFF/Modeの全ボタンのコードを取得しました。
+      「何色がどういう文字列で受け取れるか」が分かれば、あとはプログラムで自由に料理できます。
+    </p>
+
+    <h3>詰まったところと、どう解決したか</h3>
+    <p>もちろん一直線には進みませんでした。印象に残っている「詰まり」を2つ紹介します。</p>
+    <ul>
+      <li>
+        <strong>OLED画面に何も映らない</strong> ——
+        AIと相談して「I2Cスキャナ」という診断プログラムを作って流し込み、
+        画面がどのピンにつながっているかを総当たりで調査。SDA=21 / SCL=22 という
+        設定だと判明して解決しました。
+      </li>
+      <li>
+        <strong>受信部品の型番が分からない</strong> ——
+        基板に型番が書かれておらず、どの足が電源でどの足が信号か分からない。
+        ネットで同じ製品の分解記事を見つけて型番(VS838)を特定し、
+        メーカーのデータシート(仕様書)でピン配置を確認してから配線しました。
+      </li>
+    </ul>
+
+    <h3>ステップ4:ゲーム画面はPCに任せる(方針転換)</h3>
+    <p>
+      当初はLEDライト本体を光らせてゲームをする予定でしたが、
+      LED側の配線の特定がテスターなしでは難しく、いったん保留に。
+      そこで<strong>「ゲーム画面はPCのブラウザに任せて、ESP32はリモコンのボタンをWiFiでPCに送るだけの役に徹する」</strong>
+      という構成に方針転換しました。
+    </p>
+    <p>
+      ESP32はWiFiを内蔵しているので、こういう転換が気軽にできます。
+      ゲーム本体はPython(Flask)で書き、ブラウザに16拍のリズムレーンを表示。
+      リモコンのボタン情報はWiFi経由で届きます。
+    </p>
+
+    <figure class="diagram">
+      <svg viewBox="0 0 680 210" role="img" aria-label="ゲームのルール図: 16拍のレーンを色付きビートが流れ、タイミングよく同じ色のボタンを押す">
+        <text class="dg-text" x="340" y="28" text-anchor="middle">ゲームのルール:流れてくる「色」に合わせてボタンを押す!</text>
+        <!-- lane -->
+        <rect class="dg-box" x="30" y="55" width="620" height="60" rx="8"/>
+        <!-- beat ticks -->
+        <line class="dg-arrow" x1="108" y1="55" x2="108" y2="115" stroke-dasharray="3 4"/>
+        <line class="dg-arrow" x1="186" y1="55" x2="186" y2="115" stroke-dasharray="3 4"/>
+        <line class="dg-arrow" x1="264" y1="55" x2="264" y2="115" stroke-dasharray="3 4"/>
+        <line class="dg-arrow" x1="342" y1="55" x2="342" y2="115" stroke-dasharray="3 4"/>
+        <line class="dg-arrow" x1="420" y1="55" x2="420" y2="115" stroke-dasharray="3 4"/>
+        <line class="dg-arrow" x1="498" y1="55" x2="498" y2="115" stroke-dasharray="3 4"/>
+        <line class="dg-arrow" x1="576" y1="55" x2="576" y2="115" stroke-dasharray="3 4"/>
+        <!-- notes -->
+        <circle cx="147" cy="85" r="16" fill="#d33b30"/>
+        <circle cx="303" cy="85" r="16" fill="#2fa85a"/>
+        <circle cx="459" cy="85" r="16" fill="#3a5fe0"/>
+        <circle cx="615" cy="85" r="16" fill="#cbc72e"/>
+        <!-- direction -->
+        <line class="dg-arrow" x1="560" y1="140" x2="120" y2="140"/>
+        <polygon class="dg-arrowhead" points="120,140 132,134 132,146"/>
+        <text class="dg-text-small" x="340" y="160" text-anchor="middle">ビートが判定ラインに向かって流れてくる</text>
+        <!-- judgment line -->
+        <line x1="70" y1="45" x2="70" y2="125" stroke="var(--accent)" stroke-width="3"/>
+        <text class="dg-text-accent" x="70" y="40" text-anchor="middle">判定ライン</text>
+        <!-- judgment windows -->
+        <text class="dg-text-small" x="340" y="190" text-anchor="middle">ピッタリ = EXCELLENT / 少しズレ = OK / 大きくズレ・素通り = ライフが減る</text>
+      </svg>
+      <figcaption>ルールはシンプル。16拍のレーンを流れてくる色に合わせて、リモコンの同じ色のボタンをリズムよく押す</figcaption>
+    </figure>
+
+    <p>ゲームの仕様はこんな感じです。</p>
+    <ul>
+      <li>全5ステージ。ステージが進むごとに、16拍の中の「色付きビート」が 2 → 4 → 6 → 8 → 10個と増える</li>
+      <li>タイミング判定はピッタリ(±0.09秒)で <strong>EXCELLENT</strong>、少しズレ(±0.22秒)で <strong>OK</strong></li>
+      <li>大きくズレたり押しそびれたりするとライフが減る。ライフは3つ、なくなるとゲームオーバー</li>
+      <li>連続で成功するとコンボボーナスでスコアが伸びる</li>
+    </ul>
+
+    <div class="photo-row">
+      <figure class="photo">
+        <img src="images/wiring-1.jpg" alt="配線してOLEDにColor Memory Gameと表示されているESP32" loading="lazy">
+        <figcaption>配線して起動したところ。OLEDにゲーム名が表示された</figcaption>
+      </figure>
+      <figure class="photo">
+        <img src="images/wiring-2.jpg" alt="ESP32と分解したLEDライト基板をジャンパー線で接続した全体の様子" loading="lazy">
+        <figcaption>ESP32と分解した基板をジャンパー線で接続した様子</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       9. まとめ
+       ============================================================ -->
+  <section id="summary">
+    <h2>まとめ:AIと一緒なら、現実のものづくりはもっと身近になる</h2>
+    <p>
+      300円のLEDライトが、AIに聞きながら手を動かしただけで、
+      リモコンをコントローラーにしたリズムゲームになりました。
+    </p>
+    <p>
+      電子工作の知識はほとんどない状態から始めましたが、
+      「何を準備する?」「どうつなぐ?」「このエラーは何?」と、
+      その都度AIと対話しながら進めることで、ここまで来られました。
+      AIの使い方はソフトの中だけにとどまりません。
+      <strong>ハードとつなげると、現実の空間で動く面白いものが作れます。</strong>
+    </p>
+    <p>
+      100円ショップを「部品の宝庫」として眺めるところから、ぜひ始めてみてください。
+    </p>
+    <p>
+      ソースコード(ESP32のプログラム・ゲーム本体)はGitHubで公開しています:<br>
+      <a href="https://github.com/KeitoKuramochi/sensor_infrared" target="_blank" rel="noopener">github.com/KeitoKuramochi/sensor_infrared</a>
+    </p>
+  </section>
+
+</main>
+
+<footer>
+  <p>作: <a href="https://github.com/KeitoKuramochi" target="_blank" rel="noopener">KeitoKuramochi</a> — AIアシスタント(Claude)と一緒に制作しました</p>
+</footer>
+
+</body>
+</html>

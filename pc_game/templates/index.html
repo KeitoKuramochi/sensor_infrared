@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Color Memory Game</title>
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #111318;
+    color: #f2f2f2;
+    font-family: -apple-system, "Hiragino Sans", sans-serif;
+    gap: 16px;
+    overflow: hidden;
+  }
+  h1 { font-size: 26px; margin: 0; letter-spacing: 0.02em; }
+
+  #hud {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-size: 15px;
+    color: #9aa0aa;
+  }
+  #hud b { color: #f2f2f2; font-size: 17px; }
+  #lives { letter-spacing: 2px; font-size: 16px; }
+
+  #message { font-size: 17px; min-height: 22px; color: #d0d4dc; text-align: center; }
+  #best { font-size: 12px; color: #6a707c; }
+
+  #judgmentPopup {
+    position: fixed;
+    top: 30%;
+    font-size: 30px;
+    font-weight: 800;
+    opacity: 0;
+    pointer-events: none;
+    text-shadow: 0 0 16px currentColor;
+  }
+  #judgmentPopup.excellent { color: #ffd60a; }
+  #judgmentPopup.ok { color: #7fd4ff; }
+  #judgmentPopup.fail { color: #ff5a5a; }
+  #judgmentPopup.pop { animation: judgmentPop 550ms ease-out; }
+  @keyframes judgmentPop {
+    0%   { opacity: 0; transform: translateY(10px) scale(0.8); }
+    25%  { opacity: 1; transform: translateY(-6px) scale(1.15); }
+    100% { opacity: 0; transform: translateY(-26px) scale(1.0); }
+  }
+
+  /* --- 太鼓の達人風コンベア --- */
+  #conveyorWrap { width: 620px; max-width: 90vw; }
+  #conveyorTrack {
+    position: relative;
+    height: 70px;
+    background: #1a1c22;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  #judgmentZone {
+    box-sizing: border-box;
+    position: absolute;
+    left: 22px;
+    top: 7px;
+    width: 56px;
+    height: 56px;
+    border: 3px solid #ffffff;
+    border-radius: 50%;
+    opacity: 0.35;
+  }
+  #judgmentZone.pulse { animation: zonePulse 160ms ease-out; }
+  @keyframes zonePulse {
+    0%   { opacity: 1; box-shadow: 0 0 20px 6px #ffffff; }
+    100% { opacity: 0.35; box-shadow: none; }
+  }
+  .note {
+    box-sizing: border-box;
+    position: absolute;
+    left: 0;
+    top: 7px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    transition: opacity 280ms ease;
+  }
+  .note.cleared { opacity: 0; }
+  .note.note-empty {
+    top: 17px;
+    left: 10px;
+    width: 36px;
+    height: 36px;
+    background: transparent;
+    border: 3px solid rgba(255,255,255,0.28);
+    box-shadow: none;
+  }
+
+  /* --- リモコン再現 --- */
+  #remote {
+    display: grid;
+    grid-template-columns: repeat(3, 52px);
+    grid-template-rows: repeat(6, 52px);
+    gap: 12px;
+    background: #38383d;
+    padding: 18px;
+    border-radius: 22px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+  .btn {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.1;
+    transition: transform 150ms ease, box-shadow 150ms ease;
+  }
+  .btn.label { background: #cfcfd4; color: #111; }
+  .btn.label.off { background: #b23a2e; color: #fff; }
+  .btn.label.on { background: #2e8b52; color: #fff; }
+  .btn.active {
+    transform: scale(1.28);
+    box-shadow: 0 0 22px 6px currentColor;
+    z-index: 2;
+  }
+
+  /* --- ステージ導入 / せーの オーバーレイ --- */
+  #introOverlay {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 10px;
+    background: rgba(10, 11, 14, 0.85);
+    z-index: 10;
+    pointer-events: none;
+  }
+  #introOverlay.show { display: flex; }
+  #introTitle { font-size: 34px; font-weight: 700; }
+  #introSub { font-size: 18px; color: #b7bcc6; }
+
+  /* --- 音有効化オーバーレイ --- */
+  #unlockOverlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.9);
+    z-index: 20;
+    font-size: 18px;
+    cursor: pointer;
+  }
+  #unlockOverlay.hide { display: none; }
+</style>
+</head>
+<body>
+  <div id="unlockOverlay">クリックして音を有効化 🔊</div>
+
+  <h1>Color Memory Game</h1>
+  <div id="hud">
+    <div>Stage <b id="stage">0</b>/{{ total_stages }}</div>
+    <div>Score <b id="score">0</b></div>
+    <div id="lives"></div>
+  </div>
+
+  <div id="judgmentPopup"></div>
+
+  <div id="conveyorWrap">
+    <div id="conveyorTrack">
+      <div id="judgmentZone"></div>
+    </div>
+  </div>
+
+  <div id="remote">
+    <div class="btn label on" data-btn="ON" style="grid-row:1;grid-column:1">ON</div>
+    <div class="btn label off" data-btn="OFF" style="grid-row:1;grid-column:2">OFF</div>
+    <div class="btn label" data-btn="Mode" style="grid-row:1;grid-column:3">Mode</div>
+    <div class="btn label" data-btn="4H" style="grid-row:2;grid-column:1">4H</div>
+    <div class="btn label" data-btn="8H" style="grid-row:2;grid-column:2">8H</div>
+    <div class="btn label" data-btn="MultiColor" style="grid-row:2;grid-column:3">Multi<br>Color</div>
+    {% for c in colors %}
+    <div class="btn color" data-btn="{{ c.name }}" style="grid-row:{{ c.row + 1 }};grid-column:{{ c.col + 1 }};background:{{ c.hex }};color:{{ c.hex }}"></div>
+    {% endfor %}
+  </div>
+
+  <div id="message">ONボタンでスタート(Modeで練習モード)</div>
+  <div id="best"></div>
+
+  <div id="introOverlay">
+    <div id="introTitle"></div>
+    <div id="introSub"></div>
+  </div>
+
+<script>
+const STARTING_LIVES = {{ starting_lives }};
+const TOTAL_STAGES = {{ total_stages }};
+const BEATS_PER_STAGE = {{ beats_per_stage }};
+const BEAT_INTERVAL_MS = {{ beat_interval_ms }};
+const COUNT_IN_BEATS = {{ count_in_beats }};
+
+const stageEl = document.getElementById('stage');
+const scoreEl = document.getElementById('score');
+const livesEl = document.getElementById('lives');
+const judgmentPopupEl = document.getElementById('judgmentPopup');
+const messageEl = document.getElementById('message');
+const bestEl = document.getElementById('best');
+const remoteEl = document.getElementById('remote');
+const trackEl = document.getElementById('conveyorTrack');
+const zoneEl = document.getElementById('judgmentZone');
+const introEl = document.getElementById('introOverlay');
+const introTitleEl = document.getElementById('introTitle');
+const introSubEl = document.getElementById('introSub');
+const unlockEl = document.getElementById('unlockOverlay');
+
+const COLOR_HEX = {
+  {% for c in colors %}"{{ c.name }}": "{{ c.hex }}",{% endfor %}
+};
+
+const ZONE_X = 22;
+const SCROLL_SPEED = 0.22; // px/ms、一定速度で流れる
+
+let slots = [];              // {idx, type:'empty'|'color', name, arrival, el, ticked}
+let rafHandle = null;
+let currentStageKey = null;  // 今コンベアを構築済みのステージ番号
+let liveNextActiveIndex = BEATS_PER_STAGE;
+let prev = {
+  phase: null, stage: 0, lives: STARTING_LIVES, judgment_seq: 0, practice_last: null,
+};
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ---------- 効果音 (Web Audio API、外部ファイル不要) ----------
+let audioCtx = null;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+function beep(freq, duration, type, gainPeak) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.value = freq;
+  const t0 = audioCtx.currentTime;
+  gain.gain.setValueAtTime(0, t0);
+  gain.gain.linearRampToValueAtTime(gainPeak || 0.2, t0 + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.02);
+}
+function playDoon() { beep(85, 0.14, 'sine', 0.4); }     // 色ビート: 低いドゥン
+function playChi() { beep(2400, 0.035, 'square', 0.05); } // 空ビート: 短いチッ
+function playExcellent(combo) { beep(660 + Math.min(combo, 10) * 30, 0.18, 'sine', 0.22); }
+function playOk() { beep(420, 0.14, 'triangle', 0.18); }
+function playFail() { beep(140, 0.35, 'sawtooth', 0.2); }
+function playStageClear() {
+  [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => beep(f, 0.16, 'triangle', 0.2), i * 90));
+}
+function playAllClear() {
+  [523, 659, 784, 1046, 1318].forEach((f, i) => setTimeout(() => beep(f, 0.22, 'triangle', 0.22), i * 110));
+}
+function playGameOver() {
+  [300, 220, 160].forEach((f, i) => setTimeout(() => beep(f, 0.3, 'sawtooth', 0.2), i * 140));
+}
+function playStart() { beep(660, 0.12, 'sine', 0.15); }
+
+unlockEl.addEventListener('click', () => {
+  ensureAudio();
+  unlockEl.classList.add('hide');
+});
+
+function popJudgment(text, kind) {
+  judgmentPopupEl.textContent = text;
+  judgmentPopupEl.className = kind;
+  void judgmentPopupEl.offsetWidth; // reflow でアニメーションを再トリガー
+  judgmentPopupEl.classList.add('pop');
+}
+
+function renderLives(lives) {
+  livesEl.textContent = '❤️'.repeat(Math.max(0, lives)) + '🖤'.repeat(Math.max(0, STARTING_LIVES - lives));
+}
+
+function highlight(name) {
+  remoteEl.querySelectorAll('.btn.active').forEach(el => el.classList.remove('active'));
+  if (name) {
+    const el = remoteEl.querySelector(`[data-btn="${name}"]`);
+    if (el) el.classList.add('active');
+  }
+}
+
+// PCだけでテストプレイできるように、リモコンのボタンをクリックでも
+// ESP32から届くのと同じ /button POST を発行する。
+remoteEl.querySelectorAll('.btn[data-btn]').forEach(el => {
+  el.style.cursor = 'pointer';
+  el.addEventListener('click', () => {
+    ensureAudio();
+    fetch('/button', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ button: el.dataset.btn }),
+    });
+  });
+});
+
+function showIntro(title, sub, ms) {
+  introTitleEl.textContent = title;
+  introSubEl.textContent = sub || '';
+  introEl.classList.add('show');
+  setTimeout(() => introEl.classList.remove('show'), ms);
+}
+
+async function flashWhite(times) {
+  for (let i = 0; i < times; i++) {
+    highlight('MultiColor');
+    await sleep(150);
+    highlight(null);
+    await sleep(120);
+  }
+}
+
+// --- コンベア: サーバーの stage_start_time を基準に、一定速度で流れる16拍パターン ---
+// サーバーとクライアントは同一PC上で動く前提で、Date.now()(クライアント)と
+// time.time()(サーバー)がほぼ一致するとみなして同期する。
+function syncedStartPerf(serverStageStartTimeSec) {
+  const nowServerEquivalentSec = Date.now() / 1000;
+  const deltaSec = serverStageStartTimeSec - nowServerEquivalentSec;
+  return performance.now() + deltaSec * 1000;
+}
+
+function pulseZone() {
+  zoneEl.classList.remove('pulse');
+  void zoneEl.offsetWidth; // reflow でアニメーションを再トリガー
+  zoneEl.classList.add('pulse');
+}
+
+let countInTimers = [];
+
+// お手本(カウントイン)は実際のビートと同じテンポで鳴らす。ビート0の到着時刻から
+// 逆算して、COUNT_IN_BEATS 個ぶん前のタイミングでメトロノーム音を鳴らすだけ。
+function scheduleCountIn(startPerf) {
+  countInTimers.forEach(t => clearTimeout(t));
+  countInTimers = [];
+  for (let i = COUNT_IN_BEATS; i >= 1; i--) {
+    const delay = (startPerf - i * BEAT_INTERVAL_MS) - performance.now();
+    if (delay > 0) {
+      countInTimers.push(setTimeout(() => { playChi(); pulseZone(); }, delay));
+    }
+  }
+}
+
+function stopConveyor() {
+  if (rafHandle) cancelAnimationFrame(rafHandle);
+  rafHandle = null;
+  countInTimers.forEach(t => clearTimeout(t));
+  countInTimers = [];
+  slots.forEach(s => s.el.remove());
+  slots = [];
+  currentStageKey = null;
+}
+
+function buildConveyor(state) {
+  slots.forEach(s => s.el.remove());
+  slots = [];
+  const startPerf = syncedStartPerf(state.stage_start_time);
+  scheduleCountIn(startPerf);
+  state.pattern.forEach((colorName, i) => {
+    const isColor = colorName !== null;
+    const d = document.createElement('div');
+    d.className = isColor ? 'note' : 'note note-empty';
+    if (isColor) d.style.background = COLOR_HEX[colorName];
+    trackEl.appendChild(d);
+    slots.push({
+      idx: i,
+      type: isColor ? 'color' : 'empty',
+      arrival: startPerf + i * BEAT_INTERVAL_MS,
+      el: d,
+      ticked: false,
+    });
+  });
+  if (rafHandle) cancelAnimationFrame(rafHandle);
+  tickConveyor();
+}
+
+function tickConveyor() {
+  const now = performance.now();
+  slots.forEach((slot) => {
+    const x = ZONE_X + (slot.arrival - now) * SCROLL_SPEED;
+    slot.el.style.transform = `translateX(${x}px)`;
+    if (!slot.ticked && x <= ZONE_X + 4) {
+      slot.ticked = true;
+      if (slot.type === 'color') playDoon(); else playChi();
+    }
+    if (slot.type === 'color' && slot.idx < liveNextActiveIndex) {
+      slot.el.classList.add('cleared');
+    } else if (x < -70) {
+      slot.el.classList.add('cleared');
+    }
+  });
+  rafHandle = requestAnimationFrame(tickConveyor);
+}
+
+function render(state) {
+  stageEl.textContent = state.stage;
+  scoreEl.textContent = state.score;
+  bestEl.textContent = (state.best_stage > 0)
+    ? `Best Stage: ${state.best_stage}/${TOTAL_STAGES} / Best Score: ${state.best_score}`
+    : '';
+
+  liveNextActiveIndex = (state.next_active_index === null) ? BEATS_PER_STAGE : state.next_active_index;
+
+  // --- 効果音・演出トリガー (直前のstateとの差分で判定) ---
+  if (state.judgment_seq > prev.judgment_seq) {
+    if (state.last_judgment === 'EXCELLENT') { popJudgment('EXCELLENT!', 'excellent'); playExcellent(state.combo); }
+    else if (state.last_judgment === 'OK') { popJudgment('OK', 'ok'); playOk(); }
+    else { popJudgment(state.last_judgment, 'fail'); playFail(); }
+  }
+  if (state.phase === 'game_over' && prev.phase !== 'game_over') playGameOver();
+  if (state.phase === 'all_clear' && prev.phase !== 'all_clear') playAllClear();
+  if (state.phase === 'stage_clear' && prev.phase === 'playing') playStageClear();
+  if (state.phase === 'playing' && prev.phase !== 'playing' && prev.phase !== null && state.stage === 1) playStart();
+  if (state.phase === 'practice' && state.practice_last && state.practice_last !== prev.practice_last) playDoon();
+
+  if (state.phase === 'idle') {
+    currentStageKey = null;
+    stopConveyor();
+    renderLives(STARTING_LIVES);
+    highlight('ON');
+    messageEl.textContent = 'ONボタンでスタート(Modeで練習モード)';
+  } else if (state.phase === 'practice') {
+    currentStageKey = null;
+    stopConveyor();
+    renderLives(STARTING_LIVES);
+    highlight(state.practice_last);
+    messageEl.textContent = state.message || '練習モード: 好きな色ボタンを押してみよう(OFFで戻る)';
+  } else if (state.phase === 'playing') {
+    renderLives(state.lives);
+    const remaining = state.pattern.filter((c, i) => c !== null && i >= liveNextActiveIndex).length;
+    messageEl.textContent = `残り ${remaining} 個`;
+    highlight(state.next_active_index !== null ? state.pattern[state.next_active_index] : null);
+    if (currentStageKey !== state.stage) {
+      currentStageKey = state.stage;
+      // サーバーの実際の開始時刻(=ビート0到着時刻)に同期した残り時間だけ表示する。
+      // 固定2.2秒で消してしまうと、通信の遅延分だけ「裏でビートが先に始まる」ことになる。
+      const startPerf = syncedStartPerf(state.stage_start_time);
+      const introMs = Math.max(0, startPerf - performance.now());
+      showIntro(`Stage ${state.stage} / ${TOTAL_STAGES}`, '', introMs);
+      flashWhite(2);
+      buildConveyor(state);
+    }
+  } else if (state.phase === 'stage_clear') {
+    stopConveyor();
+    highlight('ON');
+    messageEl.textContent = state.message + ' — ONボタンで次へ';
+  } else if (state.phase === 'game_over') {
+    currentStageKey = null;
+    stopConveyor();
+    highlight(null);
+    renderLives(0);
+    messageEl.textContent = state.message + ' — ONボタンでもう一度';
+  } else if (state.phase === 'all_clear') {
+    currentStageKey = null;
+    stopConveyor();
+    highlight(null);
+    renderLives(STARTING_LIVES);
+    messageEl.textContent = state.message + ' — ONボタンでもう一度';
+  }
+
+  prev = {
+    phase: state.phase,
+    stage: state.stage,
+    lives: state.lives,
+    judgment_seq: state.judgment_seq,
+    practice_last: state.practice_last,
+  };
+}
+
+async function poll() {
+  try {
+    const res = await fetch('/state');
+    const state = await res.json();
+    render(state);
+  } catch (e) {
+    messageEl.textContent = 'サーバーに接続できません';
+  }
+  setTimeout(poll, 100);
+}
+
+poll();
+</script>
+</body>
+</html>

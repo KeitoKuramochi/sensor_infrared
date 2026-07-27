@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "f=$(jq -r \".tool_input.file_path // empty\"); if [ -n \"$f\" ] && [[ \"$f\" != \"/Users/kuramochikeito/Desktop/hobby/sensor\"/* ]] && [ \"$f\" != \"/Users/kuramochikeito/Desktop/hobby/sensor\" ]; then jq -n \"{hookSpecificOutput:{hookEventName:\\\"PreToolUse\\\",permissionDecision:\\\"deny\\\",permissionDecisionReason:\\\"File operations outside the project folder /Users/kuramochikeito/Desktop/hobby/sensor are not allowed.\\\"}}\"; fi"
+            "command": "f=$(jq -r \".tool_input.file_path // empty\"); if [ -n \"$f\" ] && [[ \"$f\" != \"/Users/kuramochikeito/Desktop/hobby/sensor\"/* ]] && [ \"$f\" != \"/Users/kuramochikeito/Desktop/hobby/sensor\" ] && [[ \"$f\" != \"/Users/kuramochikeito/.claude/plans\"/* ]]; then jq -n \"{hookSpecificOutput:{hookEventName:\\\"PreToolUse\\\",permissionDecision:\\\"deny\\\",permissionDecisionReason:\\\"File operations outside the project folder /Users/kuramochikeito/Desktop/hobby/sensor are not allowed.\\\"}}\"; fi"
           }
         ]
       },

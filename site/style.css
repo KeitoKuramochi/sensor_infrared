@@ -1,0 +1,370 @@
+/* ============================================================
+   100円ショップのLEDライトでリズムゲームを作った話 - スタイル
+   シンプルな縦一列の記事レイアウト。スマホ優先・ダークモード対応。
+   ============================================================ */
+
+:root {
+  --bg: #fdfcf9;
+  --bg-soft: #f3f1ea;
+  --text: #2b2a26;
+  --text-soft: #6b675e;
+  --accent: #d95a2b;
+  --accent-soft: #fbe8de;
+  --line: #e2ded4;
+  --card: #ffffff;
+  --diagram-box: #ffffff;
+  --diagram-stroke: #8a857a;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #191817;
+    --bg-soft: #211f1e;
+    --text: #ece9e2;
+    --text-soft: #a5a094;
+    --accent: #f0793f;
+    --accent-soft: #3a2a20;
+    --line: #3a3733;
+    --card: #232120;
+    --diagram-box: #2a2826;
+    --diagram-stroke: #8a857a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP",
+    system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.9;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 20px 80px;
+}
+
+/* ---------- ヒーロー ---------- */
+
+header.hero {
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--line);
+  padding: 56px 20px 40px;
+  text-align: center;
+}
+
+.hero-inner {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.hero .kicker {
+  display: inline-block;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  border-radius: 999px;
+  padding: 4px 14px;
+  margin-bottom: 18px;
+}
+
+.hero h1 {
+  font-size: 1.75rem;
+  line-height: 1.5;
+  margin: 0 0 16px;
+  font-weight: 800;
+}
+
+.hero .lead {
+  color: var(--text-soft);
+  font-size: 1rem;
+  margin: 0 auto;
+  max-width: 34em;
+  text-align: left;
+}
+
+/* ---------- 見出し・本文 ---------- */
+
+section {
+  margin-top: 64px;
+}
+
+h2 {
+  font-size: 1.35rem;
+  line-height: 1.5;
+  border-left: 5px solid var(--accent);
+  padding-left: 14px;
+  margin: 0 0 20px;
+}
+
+h3 {
+  font-size: 1.05rem;
+  margin: 32px 0 8px;
+}
+
+p {
+  margin: 0 0 1.2em;
+}
+
+a {
+  color: var(--accent);
+}
+
+strong {
+  font-weight: 700;
+}
+
+ul,
+ol {
+  padding-left: 1.4em;
+  margin: 0 0 1.2em;
+}
+
+li {
+  margin-bottom: 0.4em;
+}
+
+/* ---------- 写真 ---------- */
+
+figure.photo {
+  margin: 28px 0;
+}
+
+figure.photo img {
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  display: block;
+}
+
+figure.photo figcaption,
+figure.diagram figcaption,
+figure.photo-placeholder figcaption {
+  font-size: 0.85rem;
+  color: var(--text-soft);
+  margin-top: 10px;
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* 2枚横並び(スマホでは縦積み) */
+.photo-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 28px 0;
+}
+
+.photo-row figure.photo {
+  margin: 0;
+}
+
+@media (max-width: 560px) {
+  .photo-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 追加予定写真のプレースホルダ枠 */
+figure.photo-placeholder {
+  margin: 28px 0;
+}
+
+figure.photo-placeholder .frame {
+  border: 2px dashed var(--line);
+  border-radius: 10px;
+  background: var(--bg-soft);
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-soft);
+  font-size: 0.9rem;
+  padding: 24px;
+  text-align: center;
+  line-height: 1.7;
+}
+
+/* ---------- 図(インラインSVG) ---------- */
+
+figure.diagram {
+  margin: 28px 0;
+}
+
+figure.diagram svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.dg-box {
+  fill: var(--diagram-box);
+  stroke: var(--diagram-stroke);
+  stroke-width: 1.5;
+}
+
+.dg-box-accent {
+  fill: var(--accent-soft);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.dg-text {
+  fill: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.dg-text-small {
+  fill: var(--text-soft);
+  font-family: inherit;
+  font-size: 11.5px;
+}
+
+.dg-text-accent {
+  fill: var(--accent);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dg-arrow {
+  stroke: var(--diagram-stroke);
+  stroke-width: 2;
+  fill: none;
+}
+
+.dg-arrowhead {
+  fill: var(--diagram-stroke);
+}
+
+.dg-wire-out { stroke: #d98a1f; stroke-width: 3; fill: none; }
+.dg-wire-gnd { stroke: #6b675e; stroke-width: 3; fill: none; }
+.dg-wire-vcc { stroke: #d33b30; stroke-width: 3; fill: none; }
+
+/* ---------- 動画 ---------- */
+
+.video-wrap {
+  margin: 28px 0;
+}
+
+.video-wrap video {
+  width: 100%;
+  border-radius: 10px;
+  display: block;
+  background: #000;
+}
+
+.video-note {
+  font-size: 0.85rem;
+  color: var(--text-soft);
+  text-align: center;
+  margin-top: 10px;
+}
+
+/* ---------- 機材カード ---------- */
+
+.gear-list {
+  display: grid;
+  gap: 16px;
+  margin: 28px 0;
+}
+
+.gear-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+
+.gear-card h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.gear-card p {
+  margin: 0 0 10px;
+  font-size: 0.92rem;
+  color: var(--text-soft);
+}
+
+.buy-link {
+  display: inline-block;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--accent);
+  border: 1.5px solid var(--accent);
+  border-radius: 999px;
+  padding: 4px 16px;
+  text-decoration: none;
+}
+
+.buy-link.pending {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* ---------- 補足ボックス ---------- */
+
+.note-box {
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 22px;
+  margin: 28px 0;
+  font-size: 0.95rem;
+}
+
+.note-box .note-title {
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+/* ---------- テーブル(IRコード対応表など) ---------- */
+
+.table-wrap {
+  overflow-x: auto;
+  margin: 28px 0;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+th {
+  background: var(--bg-soft);
+}
+
+/* ---------- フッター ---------- */
+
+footer {
+  border-top: 1px solid var(--line);
+  margin-top: 80px;
+  padding: 32px 20px 48px;
+  text-align: center;
+  color: var(--text-soft);
+  font-size: 0.9rem;
+}
