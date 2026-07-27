@@ -66,6 +66,11 @@ Adafruit_SSD1306 display(OLED_WIDTH, OLED_HEIGHT, &Wire, -1);
 BluetoothSerial SerialBT;
 bool lastConnected = false;
 
+// 死活監視: 接続中は2秒ごとに "PING" を送る。PC側はこれが8秒途絶えたら
+// 接続が死んだとみなしてポートを開き直す(ESP32の電源入れ直し対策)。
+constexpr unsigned long PING_INTERVAL_MS = 2000;
+unsigned long lastPingMs = 0;
+
 void drawStatus(const String& line1, const String& line2) {
   display.clearDisplay();
   display.setTextSize(1);
@@ -118,6 +123,11 @@ void loop() {
       Serial.println("PC disconnected");
       drawStatus(String("BT: ") + BT_DEVICE_NAME, "Waiting for PC...");
     }
+  }
+
+  if (connected && millis() - lastPingMs >= PING_INTERVAL_MS) {
+    lastPingMs = millis();
+    SerialBT.println("PING");
   }
 
   if (irrecv.decode(&results)) {

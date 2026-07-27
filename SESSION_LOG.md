@@ -12,6 +12,14 @@
 - 次にやること
 ```
 
+## 2026-07-27 - Bluetooth「1回しか反応しない」問題を修正(ハートビートによる半死に接続の検知)
+- ユーザー報告: Bluetooth接続はでき、ESP32のOLEDには押したボタンが表示されるが、ONで一度ゲームが始まった後はサイト(ゲーム画面)が反応しなくなる
+- 実機調査で確定: 新サーバー(PID確認済み)はポート8000とBluetoothポートを正常に保持したまま、一度ONを受信してゲーム開始→idle復帰後、以降のボタンが一切届いていなかった(judgment_seq=0のまま)。原因は**Bluetooth接続の半死に**: ESP32の電源入れ直し等でリンクが切れても、macOS側にはエラーが上がらず readline が永遠に空を返すだけになるため、再接続のきっかけが来ない
+- 対策=死活監視(ハートビート): ①ファーム `color_memory_game_bt.ino` が接続中2秒ごとに `PING` を送信 ②サーバー側 `bt_reader` は8秒無音ならポートを閉じて開き直す(RFCOMMが張り直される)。PINGはゲームロジックには流さない
+- 検証: pty(擬似シリアル)でPING/ボタン/無音→自動張り直し→復帰の一連をテストしALL OK。ファームもコンパイル確認済み(89%)
+- 注意: ファームとサーバーは**セットで更新が必要**(旧ファーム+新サーバーだとPINGが来ないため8秒ごとに張り直しを繰り返す)
+- ユーザー側の残作業: ①ESP32に更新版 `color_memory_game_bt.ino` を書き込み直す ②起動中の `game_server.py` をCtrl+Cで止めて再実行 → 通しプレイ確認
+
 ## 2026-07-27 - Bluetooth接続対応(WiFi不要化)
 - ユーザーの依頼「ESP32を起動したらBluetoothだけでPCとつながるように」に対応。WiFiルーター・IPアドレス設定(wifi_config.h)が一切不要になる構成に変更
 - 新ファームウェア `firmware/color_memory_game_bt/color_memory_game_bt.ino` を作成: Bluetooth Classic (SPP、デバイス名「ColorMemoryGame」)でボタン名を1行ずつ送信。OLEDに接続状態(Waiting for PC... / PC connected!)を表示。IRコードは★確定版をそのまま使用。標準パーティションでコンパイル確認済み(フラッシュ89%)

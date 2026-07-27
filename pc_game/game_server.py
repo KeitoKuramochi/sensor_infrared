@@ -315,6 +315,11 @@ def post_button():
 
 BT_PORT_PATTERNS = ["/dev/cu.ColorMemoryGame*", "/dev/tty.ColorMemoryGame*"]
 
+# ファームウェアは接続中2秒ごとに "PING" を送ってくる(死活監視)。
+# これだけの時間なにも届かなければ、接続が半死に状態(ESP32の電源断・再起動時に
+# macOS側へエラーが上がらず無音になるだけのことがある)とみなしてポートを開き直す。
+BT_SILENCE_TIMEOUT_SEC = 8
+
 
 def find_bt_port():
     for pattern in BT_PORT_PATTERNS:
@@ -326,7 +331,7 @@ def find_bt_port():
 
 def bt_reader():
     """BluetoothシリアルからESP32のボタン名を読み、HTTPと同じ handle_button に流す。
-    ポート未検出・切断時は数秒おきに再試行し続ける(ESP32の電源ON/OFFに追従)。"""
+    ポート未検出・切断・無音時は再試行し続ける(ESP32の電源ON/OFFに追従)。"""
     if serial is None:
         print("[BT] pyserial が無いためBluetooth受信は無効です (pip install pyserial)")
         return
@@ -344,11 +349,19 @@ def bt_reader():
             with serial.Serial(port, 115200, timeout=1) as ser:
                 print(f"[BT] 接続しました: {port}")
                 waiting_logged = False
+                last_rx = time.time()
                 while True:
                     name = ser.readline().decode(errors="ignore").strip()
                     if name:
+                        last_rx = time.time()
+                        if name == "PING":
+                            continue
                         print(f"[BT] Button: {name}")
                         handle_button(name)
+                    elif time.time() - last_rx > BT_SILENCE_TIMEOUT_SEC:
+                        print("[BT] 応答が途絶えました — 接続を張り直します")
+                        break  # withを抜けてポートを閉じ、開き直す
+            time.sleep(1)
         except (serial.SerialException, OSError) as e:
             print(f"[BT] 切断されました ({e}) — 3秒後に再接続を試みます")
             time.sleep(3)
