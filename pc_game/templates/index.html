@@ -3,8 +3,22 @@
 <head>
 <meta charset="utf-8">
 <title>Color Memory Game</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎨</text></svg>">
 <style>
-  :root { color-scheme: dark; }
+  :root {
+    color-scheme: dark;
+    --bg: #0e1014;
+    --panel: rgba(20, 23, 30, 0.66);
+    --panel-border: rgba(255, 255, 255, 0.09);
+    --text: #eef1f6;
+    --text-2: #a7aebb;
+    --text-3: #646b78;
+    --cyan: #56d7ff;
+    --gold: #ffd60a;
+    --red: #ff5a5a;
+    --radius: 18px;
+  }
+  * { box-sizing: border-box; }
   body {
     margin: 0;
     min-height: 100vh;
@@ -12,33 +26,39 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: #111318;
-    color: #f2f2f2;
-    font-family: -apple-system, "Hiragino Sans", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
     overflow: hidden;
   }
 {% if art.bg %}
   body {
-    background: linear-gradient(rgba(13, 14, 19, 0.84), rgba(13, 14, 19, 0.84)),
-                url("{{ art.bg }}") center / cover fixed, #111318;
+    background: radial-gradient(ellipse at 50% 40%, rgba(13, 14, 19, 0.72) 30%, rgba(10, 11, 15, 0.92)),
+                url("{{ art.bg }}") center / cover fixed, var(--bg);
   }
 {% endif %}
   h1 { font-size: 26px; margin: 0; letter-spacing: 0.02em; }
-  #logo { max-height: 88px; max-width: 440px; }
-  #resultArt { max-height: 135px; max-width: 90%; display: none; }
-  #resultArt.show { display: block; }
-  #mascotImg { display: block; width: 62%; margin: 0 auto 10px; }
-  .heart-img { height: 19px; vertical-align: middle; margin-right: 3px; }
-  .heart-img.lost { filter: grayscale(1) brightness(0.4); }
+  #logo { max-height: 86px; max-width: 440px; filter: drop-shadow(0 6px 22px rgba(0,0,0,0.55)); }
+
+  #resultArt { max-height: 132px; max-width: 90%; display: none; }
+  #resultArt.show { display: block; animation: resultIn 460ms cubic-bezier(0.18, 0.9, 0.28, 1.35); }
+  @keyframes resultIn {
+    0%   { opacity: 0; transform: scale(0.6) translateY(10px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  #mascotImg { display: block; width: 58%; margin: 2px auto 12px; filter: drop-shadow(0 6px 14px rgba(0,0,0,0.45)); }
+  .heart-img { height: 19px; vertical-align: -4px; margin-right: 3px; filter: drop-shadow(0 0 6px rgba(255,80,80,0.5)); }
+  .heart-img.lost { filter: grayscale(1) brightness(0.38); }
 
   /* EXCELLENT判定の瞬間のバースト。mix-blend-mode:screen で黒背景が消えて光だけ乗る */
   #burstArt {
     position: fixed;
-    top: 18%;
+    top: 16%;
     left: 0;
     right: 0;
     margin: 0 auto;
-    max-width: 340px;
+    max-width: 360px;
     mix-blend-mode: screen;
     pointer-events: none;
     opacity: 0;
@@ -46,15 +66,15 @@
   }
   #burstArt.pop { animation: burstPop 500ms ease-out; }
   @keyframes burstPop {
-    0%   { opacity: 0; transform: scale(0.4); }
-    30%  { opacity: 1; transform: scale(1.05); }
-    100% { opacity: 0; transform: scale(1.35); }
+    0%   { opacity: 0; transform: scale(0.4) rotate(-8deg); }
+    30%  { opacity: 1; transform: scale(1.05) rotate(0deg); }
+    100% { opacity: 0; transform: scale(1.4) rotate(6deg); }
   }
 
   /* --- 3カラムレイアウト: 左=遊び方 / 中央=ゲーム / 右=ランキング --- */
   #layout {
     display: flex;
-    gap: 28px;
+    gap: 30px;
     align-items: center;
     justify-content: center;
   }
@@ -62,129 +82,277 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
+    gap: 15px;
   }
   .side-panel {
-    width: 230px;
-    background: rgba(26, 28, 34, 0.88);
-    border-radius: 14px;
-    padding: 16px 18px;
+    width: 244px;
+    background: var(--panel);
+    backdrop-filter: blur(18px) saturate(1.35);
+    -webkit-backdrop-filter: blur(18px) saturate(1.35);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius);
+    padding: 18px 18px 16px;
     font-size: 12.5px;
-    line-height: 1.75;
-    color: #b7bcc6;
-    box-shadow: 0 4px 18px rgba(0,0,0,0.3);
+    line-height: 1.7;
+    color: var(--text-2);
+    box-shadow: 0 14px 42px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
   .panel-title {
-    font-weight: 700;
-    color: #f2f2f2;
-    font-size: 14px;
-    margin-bottom: 8px;
+    font-weight: 800;
+    color: var(--text);
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
-  #howtoPanel ul { margin: 0; padding-left: 1.3em; }
-  #howtoPanel li { margin-bottom: 7px; }
-  #howtoPanel b { color: #e8eaf0; }
+  .panel-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.18), transparent);
+  }
+
+  /* --- 遊び方: アイコン付きステップ --- */
+  .step {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 7px 0;
+  }
+  .step + .step { border-top: 1px solid rgba(255, 255, 255, 0.05); }
+  .step-icon {
+    flex: none;
+    width: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding-top: 2px;
+  }
+  .step-text { flex: 1; }
+  .step-text b { color: var(--text); }
+  .mini-btn {
+    display: inline-flex;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    font-weight: 800;
+    color: #fff;
+    box-shadow: inset 0 1px 2px rgba(255,255,255,0.35), inset 0 -2px 3px rgba(0,0,0,0.25), 0 2px 5px rgba(0,0,0,0.4);
+  }
+  .mini-btn.on { background: #2e8b52; }
+  .mini-btn.off { background: #b23a2e; }
+  .mini-btn.mode { background: #cfcfd4; color: #111; }
+  .mini-note {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 32% 28%, #7f9cff, #3a5fe0 65%);
+    box-shadow: 0 0 8px rgba(58, 95, 224, 0.7);
+  }
+  .mini-arrow { color: var(--text-3); font-size: 11px; }
+  .mini-ring {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 2.5px solid rgba(255, 255, 255, 0.85);
+    border-radius: 50%;
+    box-shadow: 0 0 9px rgba(86, 215, 255, 0.55);
+  }
+  .badge {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 99px;
+    letter-spacing: 0.05em;
+    vertical-align: 1px;
+  }
+  .badge.gold { background: rgba(255, 214, 10, 0.15); color: var(--gold); border: 1px solid rgba(255, 214, 10, 0.45); }
+  .badge.cyan { background: rgba(86, 215, 255, 0.13); color: #8fdcff; border: 1px solid rgba(86, 215, 255, 0.4); }
+  .badge.red  { background: rgba(255, 90, 90, 0.12); color: #ff8484; border: 1px solid rgba(255, 90, 90, 0.4); }
+  .judge-row { display: flex; align-items: center; gap: 7px; padding: 2px 0; }
+  .judge-row .badge { flex: none; min-width: 74px; text-align: center; }
+
+  /* --- ランキング --- */
   #rankingList { list-style: none; margin: 0; padding: 0; }
   #rankingList li {
     display: flex;
     gap: 7px;
     align-items: baseline;
-    padding: 4px 0;
-    border-bottom: 1px solid rgba(255,255,255,0.07);
+    padding: 6px 2px;
+    border-radius: 8px;
   }
+  #rankingList li + li { border-top: 1px solid rgba(255, 255, 255, 0.05); }
+  #rankingList li:first-child {
+    background: linear-gradient(90deg, rgba(255, 214, 10, 0.09), transparent 75%);
+  }
+  #rankingList li:first-child .r-score { color: var(--gold); text-shadow: 0 0 12px rgba(255, 214, 10, 0.4); }
   #rankingList .rank { min-width: 2.2em; font-weight: 700; }
-  #rankingList .r-score { margin-left: auto; font-weight: 700; color: #f2f2f2; }
-  #rankingList .r-score small { font-weight: 400; color: #8a8f9a; }
-  #rankingList .r-stage { color: #9aa0aa; min-width: 3.2em; }
-  #rankingList .r-time { color: #6a707c; font-size: 11px; }
+  #rankingList .r-score { margin-left: auto; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+  #rankingList .r-score small { font-weight: 500; color: var(--text-3); margin-left: 1px; }
+  #rankingList .r-stage { color: var(--text-2); min-width: 3.2em; font-size: 11.5px; }
+  #rankingList .r-time { color: var(--text-3); font-size: 10.5px; font-variant-numeric: tabular-nums; }
   #rankingList .new {
-    background: #ffd60a;
+    background: var(--gold);
     color: #111;
     border-radius: 4px;
-    font-size: 9px;
-    padding: 1px 4px;
+    font-size: 8.5px;
+    padding: 1px 5px;
     font-weight: 800;
+    box-shadow: 0 0 10px rgba(255, 214, 10, 0.45);
   }
-  #rankingEmpty { color: #6a707c; }
-  @media (max-width: 1220px) { .side-panel { display: none; } }
+  #rankingEmpty { color: var(--text-3); text-align: center; padding: 14px 0 8px; }
+  #rankingEmpty .big { font-size: 26px; display: block; margin-bottom: 6px; }
+  @media (max-width: 1240px) { .side-panel { display: none; } }
 
-  #hud {
+  /* --- HUD: ガラスチップ --- */
+  #hud { display: flex; align-items: stretch; gap: 12px; }
+  .hud-chip {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 20px;
-    font-size: 15px;
-    color: #9aa0aa;
+    justify-content: center;
+    gap: 1px;
+    min-width: 96px;
+    padding: 7px 18px 8px;
+    background: var(--panel);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
-  #hud b { color: #f2f2f2; font-size: 17px; }
-  #lives { letter-spacing: 2px; font-size: 16px; }
+  .hud-label {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.22em;
+    color: var(--text-3);
+  }
+  .hud-value {
+    font-size: 19px;
+    font-weight: 800;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+  .hud-value .hud-dim { font-size: 12px; font-weight: 600; color: var(--text-3); }
+  #lives { line-height: 1.2; }
 
-  #message { font-size: 17px; min-height: 22px; color: #d0d4dc; text-align: center; }
-  #best { font-size: 12px; color: #6a707c; }
+  #message { font-size: 15.5px; min-height: 22px; color: #c6ccd8; text-align: center; letter-spacing: 0.02em; }
+  #best { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 
+  /* --- 判定ポップ+コンボ --- */
   #judgmentPopup {
     position: fixed;
     top: 30%;
-    font-size: 30px;
-    font-weight: 800;
+    font-size: 36px;
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: 0.03em;
     opacity: 0;
     pointer-events: none;
-    text-shadow: 0 0 16px currentColor;
+    z-index: 6;
+    text-shadow: 0 0 18px currentColor, 0 2px 4px rgba(0, 0, 0, 0.6);
   }
-  #judgmentPopup.excellent { color: #ffd60a; }
+  #judgmentPopup.excellent { color: var(--gold); }
   #judgmentPopup.ok { color: #7fd4ff; }
-  #judgmentPopup.fail { color: #ff5a5a; }
+  #judgmentPopup.fail { color: var(--red); }
   #judgmentPopup.pop { animation: judgmentPop 550ms ease-out; }
   @keyframes judgmentPop {
     0%   { opacity: 0; transform: translateY(10px) scale(0.8); }
     25%  { opacity: 1; transform: translateY(-6px) scale(1.15); }
     100% { opacity: 0; transform: translateY(-26px) scale(1.0); }
   }
+  #comboLabel {
+    position: fixed;
+    top: calc(30% + 48px);
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.28em;
+    color: var(--gold);
+    text-shadow: 0 0 14px rgba(255, 214, 10, 0.55);
+    opacity: 0;
+    transition: opacity 200ms ease;
+    pointer-events: none;
+    z-index: 6;
+  }
+  #comboLabel.show { opacity: 0.95; }
 
-  /* --- 太鼓の達人風コンベア --- */
-  #conveyorWrap { width: 620px; max-width: 90vw; }
+  /* --- リズムレーン --- */
+  #conveyorWrap { width: 640px; max-width: 90vw; }
   #conveyorTrack {
     position: relative;
-    height: 70px;
-    background: #1a1c22;
-    border-radius: 12px;
+    height: 80px;
+    background: linear-gradient(180deg, #171a21, #10131a 70%);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 16px;
     overflow: hidden;
+    box-shadow: inset 0 3px 12px rgba(0, 0, 0, 0.55), 0 10px 28px rgba(0, 0, 0, 0.35);
+  }
+  /* 判定ゾーン側をほんのり照らす */
+  #conveyorTrack::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(86, 215, 255, 0.08), transparent 30%);
+    pointer-events: none;
   }
   #judgmentZone {
     box-sizing: border-box;
     position: absolute;
     left: 22px;
-    top: 7px;
+    top: 12px;
     width: 56px;
     height: 56px;
-    border: 3px solid #ffffff;
+    border: 3px solid rgba(255, 255, 255, 0.92);
     border-radius: 50%;
-    opacity: 0.35;
+    opacity: 0.5;
+    box-shadow: 0 0 0 5px rgba(86, 215, 255, 0.12), 0 0 18px rgba(86, 215, 255, 0.28);
   }
   #judgmentZone.pulse { animation: zonePulse 160ms ease-out; }
   @keyframes zonePulse {
-    0%   { opacity: 1; box-shadow: 0 0 20px 6px #ffffff; }
-    100% { opacity: 0.35; box-shadow: none; }
+    0%   { opacity: 1; box-shadow: 0 0 24px 8px rgba(255, 255, 255, 0.85); }
+    100% { opacity: 0.5; box-shadow: 0 0 0 5px rgba(86, 215, 255, 0.12), 0 0 18px rgba(86, 215, 255, 0.28); }
   }
   .note {
     box-sizing: border-box;
     position: absolute;
     left: 0;
-    top: 7px;
+    top: 12px;
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
     transition: opacity 280ms ease;
+  }
+  /* ノーツの光沢(色はJSが background に入れる) */
+  .note::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle at 32% 26%, rgba(255,255,255,0.55), rgba(255,255,255,0.1) 36%, rgba(0,0,0,0.22) 82%);
   }
   .note.cleared { opacity: 0; }
   .note.note-empty {
-    top: 17px;
+    top: 22px;
     left: 10px;
     width: 36px;
     height: 36px;
     background: transparent;
-    border: 3px solid rgba(255,255,255,0.28);
+    border: 3px solid rgba(255, 255, 255, 0.22);
     box-shadow: none;
   }
+  .note.note-empty::after { display: none; }
 
   /* --- リモコン再現 --- */
   #remote {
@@ -192,10 +360,11 @@
     grid-template-columns: repeat(3, 52px);
     grid-template-rows: repeat(6, 52px);
     gap: 12px;
-    background: #38383d;
-    padding: 18px;
-    border-radius: 22px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    background: linear-gradient(168deg, #45484f, #2b2d34 55%, #26282e);
+    padding: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 28px;
+    box-shadow: 0 22px 48px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   }
   .btn {
     width: 52px;
@@ -205,21 +374,26 @@
     align-items: center;
     justify-content: center;
     font-size: 10px;
-    font-weight: 600;
+    font-weight: 700;
     text-align: center;
     line-height: 1.1;
-    transition: transform 150ms ease, box-shadow 150ms ease;
+    cursor: pointer;
+    transition: transform 150ms ease, box-shadow 150ms ease, filter 150ms ease;
+    box-shadow: inset 0 2px 3px rgba(255, 255, 255, 0.3), inset 0 -3px 5px rgba(0, 0, 0, 0.28), 0 3px 7px rgba(0, 0, 0, 0.4);
   }
-  .btn.label { background: #cfcfd4; color: #111; }
+  .btn:hover { filter: brightness(1.12); }
+  .btn.label { background: #cfcfd4; color: #17181c; }
   .btn.label.off { background: #b23a2e; color: #fff; }
   .btn.label.on { background: #2e8b52; color: #fff; }
   .btn.active {
     transform: scale(1.28);
-    box-shadow: 0 0 22px 6px currentColor;
+    box-shadow: 0 0 24px 7px currentColor, inset 0 2px 3px rgba(255, 255, 255, 0.35);
     z-index: 2;
   }
+  .btn.label.active { color: #fff; box-shadow: 0 0 24px 7px rgba(255, 255, 255, 0.7), inset 0 2px 3px rgba(255, 255, 255, 0.35); }
+  .btn.label.on.active { box-shadow: 0 0 24px 7px rgba(84, 214, 135, 0.8); }
 
-  /* --- ステージ導入 / せーの オーバーレイ --- */
+  /* --- ステージ導入オーバーレイ --- */
   #introOverlay {
     position: fixed;
     inset: 0;
@@ -227,14 +401,46 @@
     align-items: center;
     justify-content: center;
     flex-direction: column;
-    gap: 10px;
-    background: #0a0b0e;
+    gap: 14px;
+    background: radial-gradient(ellipse at center, #101218 20%, #08090c);
     z-index: 10;
     pointer-events: none;
   }
-  #introOverlay.show { display: flex; }
-  #introTitle { font-size: 34px; font-weight: 700; }
-  #introSub { font-size: 18px; color: #b7bcc6; }
+  #introOverlay.show { display: flex; animation: introFade 320ms ease-out; }
+  @keyframes introFade {
+    0%   { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  #introSub {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.5em;
+    text-indent: 0.5em;
+    color: var(--cyan);
+    text-shadow: 0 0 14px rgba(86, 215, 255, 0.6);
+  }
+  #introTitle {
+    font-size: 46px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    background: linear-gradient(95deg, var(--gold), #ff9d5c 35%, var(--cyan) 80%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 4px 18px rgba(0, 0, 0, 0.6));
+    animation: introTitleIn 480ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes introTitleIn {
+    0%   { transform: scale(0.82); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  #introBar {
+    width: 72px;
+    height: 3px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--gold), var(--cyan));
+    box-shadow: 0 0 12px rgba(86, 215, 255, 0.6);
+  }
 
   /* --- 音有効化オーバーレイ --- */
   #unlockOverlay {
@@ -243,39 +449,85 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(0,0,0,0.9);
+    background: rgba(5, 6, 9, 0.88);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     z-index: 20;
-    font-size: 18px;
     cursor: pointer;
   }
   #unlockOverlay.hide { display: none; }
+  #unlockCard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 30px 48px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    font-size: 16px;
+    color: var(--text);
+  }
+  #unlockCard .big { font-size: 34px; }
+  #unlockCard .sub { font-size: 12px; color: var(--text-3); }
 </style>
 </head>
 <body>
-  <div id="unlockOverlay">クリックして音を有効化 🔊</div>
+  <div id="unlockOverlay">
+    <div id="unlockCard">
+      <span class="big">🔊</span>
+      <span>クリックしてはじめる</span>
+      <span class="sub">効果音を有効にします</span>
+    </div>
+  </div>
 
   <div id="judgmentPopup"></div>
+  <div id="comboLabel"></div>
   {% if art.excellent %}<img id="burstArt" src="{{ art.excellent }}" alt="">{% endif %}
 
   <div id="layout">
   <aside id="howtoPanel" class="side-panel">
     {% if art.mascot %}<img id="mascotImg" src="{{ art.mascot }}" alt="">{% endif %}
     <div class="panel-title">🎮 あそびかた</div>
-    <ul>
-      <li><b>ON</b> でスタート</li>
-      <li>ノーツが左の輪に重なった瞬間に、<b>同じ色のボタン</b>を押す</li>
-      <li>ピッタリ = <b>EXCELLENT</b><br>すこしズレ = OK<br>大ズレ・見逃し = ❤️ −1</li>
-      <li>❤️は3つ。ステージ5まで行けば <b>ALL CLEAR</b></li>
-      <li><b>Mode</b> = 練習モード<br><b>OFF</b> = 中断してタイトルへ</li>
-    </ul>
+    <div class="step">
+      <span class="step-icon"><span class="mini-btn on">ON</span></span>
+      <span class="step-text"><b>ON</b> でスタート!</span>
+    </div>
+    <div class="step">
+      <span class="step-icon"><span class="mini-note"></span><span class="mini-arrow">▶</span><span class="mini-ring"></span></span>
+      <span class="step-text">ノーツが輪に重なった瞬間、<b>同じ色のボタン</b>を押す!</span>
+    </div>
+    <div class="step" style="display:block">
+      <div class="judge-row"><span class="badge gold">EXCELLENT</span><span>ピッタリ!</span></div>
+      <div class="judge-row"><span class="badge cyan">OK</span><span>すこしズレ</span></div>
+      <div class="judge-row"><span class="badge red">MISS</span><span>見逃し = {% if art.heart %}<img class="heart-img" src="{{ art.heart }}">{% else %}❤️{% endif %}−1</span></div>
+    </div>
+    <div class="step">
+      <span class="step-icon">{% if art.heart %}<img class="heart-img" src="{{ art.heart }}">{% else %}❤️{% endif %}×3</span>
+      <span class="step-text">ステージ5まで行けば <b>ALL CLEAR</b></span>
+    </div>
+    <div class="step">
+      <span class="step-icon"><span class="mini-btn mode">Mode</span><span class="mini-btn off">OFF</span></span>
+      <span class="step-text"><b>Mode</b> 練習 / <b>OFF</b> 中断</span>
+    </div>
   </aside>
 
   <div id="center">
   {% if art.logo %}<img id="logo" src="{{ art.logo }}" alt="Color Memory Game">{% else %}<h1>Color Memory Game</h1>{% endif %}
   <div id="hud">
-    <div>Stage <b id="stage">0</b>/{{ total_stages }}</div>
-    <div>Score <b id="score">0</b></div>
-    <div id="lives"></div>
+    <div class="hud-chip">
+      <span class="hud-label">STAGE</span>
+      <span class="hud-value"><b id="stage">0</b><span class="hud-dim">/{{ total_stages }}</span></span>
+    </div>
+    <div class="hud-chip">
+      <span class="hud-label">SCORE</span>
+      <span class="hud-value" id="score">0</span>
+    </div>
+    <div class="hud-chip">
+      <span class="hud-label">LIFE</span>
+      <span class="hud-value" id="lives"></span>
+    </div>
   </div>
 
   <img id="resultArt" src="" alt="">
@@ -305,13 +557,14 @@
   <aside id="rankingPanel" class="side-panel">
     <div class="panel-title">🏆 きょうのランキング</div>
     <ol id="rankingList"></ol>
-    <div id="rankingEmpty">まだ記録なし。<br>今日の1位になろう!</div>
+    <div id="rankingEmpty"><span class="big">🎯</span>まだ記録なし。<br>今日の1位になろう!</div>
   </aside>
   </div><!-- /#layout -->
 
   <div id="introOverlay">
-    <div id="introTitle"></div>
     <div id="introSub"></div>
+    <div id="introTitle"></div>
+    <div id="introBar"></div>
   </div>
 
 <script>
@@ -325,6 +578,7 @@ const stageEl = document.getElementById('stage');
 const scoreEl = document.getElementById('score');
 const livesEl = document.getElementById('lives');
 const judgmentPopupEl = document.getElementById('judgmentPopup');
+const comboEl = document.getElementById('comboLabel');
 const messageEl = document.getElementById('message');
 const bestEl = document.getElementById('best');
 const remoteEl = document.getElementById('remote');
@@ -462,7 +716,6 @@ function highlight(name) {
 // PCだけでテストプレイできるように、リモコンのボタンをクリックでも
 // ESP32から届くのと同じ /button POST を発行する。
 remoteEl.querySelectorAll('.btn[data-btn]').forEach(el => {
-  el.style.cursor = 'pointer';
   el.addEventListener('click', () => {
     ensureAudio();
     fetch('/button', {
@@ -475,7 +728,7 @@ remoteEl.querySelectorAll('.btn[data-btn]').forEach(el => {
 
 function showIntro(title, sub, ms) {
   introTitleEl.textContent = title;
-  introSubEl.textContent = sub || '';
+  introSubEl.textContent = sub || 'READY';
   introEl.classList.add('show');
   setTimeout(() => introEl.classList.remove('show'), ms);
 }
@@ -538,7 +791,11 @@ function buildConveyor(state) {
     const isColor = colorName !== null;
     const d = document.createElement('div');
     d.className = isColor ? 'note' : 'note note-empty';
-    if (isColor) d.style.background = COLOR_HEX[colorName];
+    if (isColor) {
+      const hex = COLOR_HEX[colorName];
+      d.style.background = hex;
+      d.style.boxShadow = `0 0 16px ${hex}88, 0 3px 8px rgba(0,0,0,0.45)`;
+    }
     trackEl.appendChild(d);
     slots.push({
       idx: i,
@@ -580,6 +837,11 @@ function render(state) {
   bestEl.textContent = (state.best_stage > 0)
     ? `Best Stage: ${state.best_stage}/${TOTAL_STAGES} / Best Score: ${state.best_score}`
     : '';
+
+  // コンボ表示 (2コンボ以上でプレイ中のみ)
+  const comboOn = state.phase === 'playing' && state.combo >= 2;
+  comboEl.classList.toggle('show', comboOn);
+  if (comboOn) comboEl.textContent = `${state.combo} COMBO`;
 
   liveNextActiveIndex = (state.next_active_index === null) ? BEATS_PER_STAGE : state.next_active_index;
 
