@@ -209,32 +209,32 @@ code {
 }
 
 /* ---------- 写真 ---------- */
-/* 写真は「小さめに並べて、クリックで原寸」が基本ルール */
+/* 写真は「トリミングせず全体を見せる・高さは抑えめ・クリックで原寸」が基本ルール */
 
 figure.photo {
   margin: 26px 0;
+  text-align: center;
 }
 
 figure.photo a.zoom {
-  display: block;
+  display: inline-block;
+  max-width: 100%;
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid var(--line);
 }
 
 figure.photo img {
-  width: 100%;
+  max-width: 100%;
+  max-height: 340px;
+  width: auto;
   height: auto;
   display: block;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
 }
 
-/* 1枚だけ見せるときも幅を絞る */
-figure.photo.compact {
-  max-width: 480px;
-  margin-left: auto;
-  margin-right: auto;
+/* 1枚だけ見せるときも少し高さに余裕を持たせる程度 */
+figure.photo.compact img {
+  max-height: 380px;
 }
 
 figcaption {
@@ -242,6 +242,7 @@ figcaption {
   color: var(--ink-soft);
   margin-top: 8px;
   line-height: 1.7;
+  text-align: center;
 }
 
 /* 2枚組グリッド(スマホでは1列) */
