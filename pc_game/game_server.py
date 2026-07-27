@@ -64,7 +64,8 @@ EXCELLENT_WINDOW_SEC = 0.09
 OK_WINDOW_SEC = 0.22
 END_BUFFER_BEATS = 1  # 最後のアクティブビートの後、少し待ってからステージ終了とみなす
 COUNT_IN_BEATS = 4  # ビート0が来るまでのカウントイン拍数(実際の拍と同じテンポでメトロノームを鳴らす)
-INTRO_DELAY_SEC = COUNT_IN_BEATS * BEAT_INTERVAL_SEC
+INTRO_SHOW_SEC = 1.5  # 「Stage N」の黒幕を表示する時間。幕が上がってからカウントインが始まる
+INTRO_DELAY_SEC = INTRO_SHOW_SEC + COUNT_IN_BEATS * BEAT_INTERVAL_SEC
 
 EXCELLENT_SCORE = 30
 EXCELLENT_COMBO_BONUS = 3

@@ -451,10 +451,11 @@ function render(state) {
     highlight(state.next_active_index !== null ? state.pattern[state.next_active_index] : null);
     if (currentStageKey !== state.stage) {
       currentStageKey = state.stage;
-      // サーバーの実際の開始時刻(=ビート0到着時刻)に同期した残り時間だけ表示する。
-      // 固定2.2秒で消してしまうと、通信の遅延分だけ「裏でビートが先に始まる」ことになる。
+      // 黒幕はカウントイン開始まで(=ビート0到着のCOUNT_IN拍前)で上げる。
+      // 幕が上がってから4拍のカウントインの間、ノーツが近づいてくるのが見える。
       const startPerf = syncedStartPerf(state.stage_start_time);
-      const introMs = Math.max(0, startPerf - performance.now());
+      const countInMs = COUNT_IN_BEATS * BEAT_INTERVAL_MS;
+      const introMs = Math.max(0, startPerf - countInMs - performance.now());
       showIntro(`Stage ${state.stage} / ${TOTAL_STAGES}`, '', introMs);
       flashWhite(2);
       buildConveyor(state);
