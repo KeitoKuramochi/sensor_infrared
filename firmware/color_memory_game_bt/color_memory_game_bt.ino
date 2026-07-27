@@ -66,10 +66,16 @@ Adafruit_SSD1306 display(OLED_WIDTH, OLED_HEIGHT, &Wire, -1);
 BluetoothSerial SerialBT;
 bool lastConnected = false;
 
-// 死活監視: 接続中は2秒ごとに "PING" を送る。PC側はこれが8秒途絶えたら
-// 接続が死んだとみなしてポートを開き直す(ESP32の電源入れ直し対策)。
+// 死活監視(双方向):
+//   - ESP32→PC: 接続中は2秒ごとに "PING" を送る。PC側はこれが8秒途絶えたら
+//     接続が死んだとみなしてポートを開き直す(ESP32の電源入れ直し対策)。
+//   - PC→ESP32: PC側も2秒ごとに "PING" を送ってくる。これが8秒途絶えた接続は
+//     「幽霊接続」(PCがポートを閉じたのに切断通知が届かず、ESP32が旧接続を
+//     保持し続けて新しい接続を拒否してしまう状態)とみなして自分から切断する。
 constexpr unsigned long PING_INTERVAL_MS = 2000;
+constexpr unsigned long STALE_TIMEOUT_MS = 8000;
 unsigned long lastPingMs = 0;
+unsigned long lastRxMs = 0;
 
 void drawStatus(const String& line1, const String& line2) {
   display.clearDisplay();
@@ -117,6 +123,7 @@ void loop() {
   if (connected != lastConnected) {
     lastConnected = connected;
     if (connected) {
+      lastRxMs = millis();  // 新しい接続にはまず8秒の猶予を与える
       Serial.println("PC connected");
       drawStatus("PC connected!", "Remote ready");
     } else {
@@ -128,6 +135,16 @@ void loop() {
   if (connected && millis() - lastPingMs >= PING_INTERVAL_MS) {
     lastPingMs = millis();
     SerialBT.println("PING");
+  }
+
+  while (SerialBT.available() > 0) {
+    SerialBT.read();  // PCからのPINGは読み捨てて受信時刻だけ記録する
+    lastRxMs = millis();
+  }
+  if (connected && millis() - lastRxMs > STALE_TIMEOUT_MS) {
+    Serial.println("Stale connection - dropping client");
+    drawStatus("Reconnecting...", "");
+    SerialBT.disconnect();
   }
 
   if (irrecv.decode(&results)) {

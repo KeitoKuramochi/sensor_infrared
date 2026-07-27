@@ -346,12 +346,18 @@ def bt_reader():
             time.sleep(3)
             continue
         try:
-            with serial.Serial(port, 115200, timeout=1) as ser:
+            with serial.Serial(port, 115200, timeout=1, write_timeout=2) as ser:
                 print(f"[BT] ポートを開きました: {port} (ESP32からの信号待ち...)")
                 waiting_logged = False
                 last_rx = time.time()
+                last_tx = 0.0
                 link_confirmed = False
                 while True:
+                    # こちらからも2秒ごとにPINGを送る。ESP32はこれが8秒途絶えた接続を
+                    # 「幽霊接続」とみなして自分から切断し、次の接続を受け付けられるようにする
+                    if time.time() - last_tx >= 2:
+                        ser.write(b"PING\n")
+                        last_tx = time.time()
                     name = ser.readline().decode(errors="ignore").strip()
                     if name:
                         last_rx = time.time()
