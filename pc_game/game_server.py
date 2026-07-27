@@ -27,6 +27,8 @@ ESP32からのボタン入力は2経路どちらでも受けられる:
     - ライフが尽きたらゲームオーバー、5ステージ全部クリアしたらALL CLEAR
 """
 
+import json
+import os
 import random
 import sys
 import threading
@@ -59,7 +61,7 @@ STARTING_LIVES = 3
 TOTAL_STAGES = 5
 BEATS_PER_STAGE = 16
 ACTIVE_BEATS_BY_STAGE = {1: 2, 2: 4, 3: 6, 4: 8, 5: 10}
-BEAT_INTERVAL_SEC = 0.55
+BEAT_INTERVAL_SEC = 0.7  # 1拍の長さ。テンポを変えたいときはここをいじる(小さいほど速い)
 EXCELLENT_WINDOW_SEC = 0.09
 OK_WINDOW_SEC = 0.22
 END_BUFFER_BEATS = 1  # 最後のアクティブビートの後、少し待ってからステージ終了とみなす
@@ -91,6 +93,52 @@ state = {
     "message": "",
     "last_action": time.time(),
 }
+
+
+# --- その日のランキング (ranking.json に永続化、gitignore対象) ---
+RANKING_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ranking.json")
+RANKING_KEEP_PER_DAY = 200
+RANKING_TOP_N = 10
+
+
+def _load_rankings():
+    try:
+        with open(RANKING_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+rankings = _load_rankings()
+ranking_seq = max(
+    (e.get("id", 0) for day in rankings.values() for e in day), default=0)
+last_entry_id = None
+
+
+def record_result(cleared: bool):
+    """ゲーム終了時のスコアを今日のランキングに記録する(lockを保持した状態で呼ぶ)。"""
+    global ranking_seq, last_entry_id
+    ranking_seq += 1
+    last_entry_id = ranking_seq
+    entries = rankings.setdefault(time.strftime("%Y-%m-%d"), [])
+    entries.append({
+        "id": ranking_seq,
+        "score": state["score"],
+        "stage": state["stage"],
+        "cleared": cleared,
+        "time": time.strftime("%H:%M"),
+    })
+    del entries[:-RANKING_KEEP_PER_DAY]
+    try:
+        with open(RANKING_FILE, "w", encoding="utf-8") as f:
+            json.dump(rankings, f, ensure_ascii=False)
+    except OSError as e:
+        print(f"ランキングの保存に失敗しました: {e}")
+
+
+def today_top():
+    entries = rankings.get(time.strftime("%Y-%m-%d"), [])
+    return sorted(entries, key=lambda e: (-e["score"], e["id"]))[:RANKING_TOP_N]
 
 
 def generate_pattern(stage_num: int):
@@ -153,6 +201,7 @@ def go_game_over():
     state["best_score"] = max(state["best_score"], state["score"])
     state["message"] = f"Game Over! Score: {state['score']}"
     state["last_action"] = time.time()
+    record_result(cleared=False)
 
 
 def register_judgment(judgment: str, kind: str):
@@ -181,6 +230,7 @@ def finish_stage():
         state["best_stage"] = TOTAL_STAGES
         state["best_score"] = max(state["best_score"], state["score"])
         state["message"] = f"ALL CLEAR! Score: {state['score']}"
+        record_result(cleared=True)
     else:
         state["best_stage"] = max(state["best_stage"], state["stage"])
         state["phase"] = "stage_clear"
@@ -278,6 +328,25 @@ def stage_ticker():
                     finish_stage()
 
 
+# 生成AIで作った画像を pc_game/static/img/ に置くと、ページ再読み込みだけで反映される。
+# ファイル名と用途は pc_game/static/img/PROMPTS.md を参照。
+STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+ART_FILES = {
+    "bg": "img/bg.png",            # ページ全体の背景
+    "logo": "img/logo.png",        # タイトルロゴ (h1テキストの代わり)
+    "gameover": "img/gameover.png",  # ゲームオーバー画面のイラスト
+    "allclear": "img/allclear.png",  # 全ステージクリア画面のイラスト
+}
+
+
+def find_art():
+    return {
+        key: f"/static/{path}"
+        if os.path.exists(os.path.join(STATIC_DIR, path)) else None
+        for key, path in ART_FILES.items()
+    }
+
+
 @app.route("/")
 def index():
     return render_template(
@@ -288,13 +357,16 @@ def index():
         beat_interval_ms=int(BEAT_INTERVAL_SEC * 1000),
         total_stages=TOTAL_STAGES,
         count_in_beats=COUNT_IN_BEATS,
+        art=find_art(),
     )
 
 
 @app.route("/state")
 def get_state():
     with lock:
-        return jsonify(state)
+        return jsonify({**state,
+                        "ranking": today_top(),
+                        "ranking_last_id": last_entry_id})
 
 
 @app.route("/button", methods=["POST"])

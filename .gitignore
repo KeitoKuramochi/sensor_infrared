@@ -32,3 +32,6 @@ wifi_config.h
 
 # Python
 __pycache__/
+
+# ゲームのランキングデータ(ローカル記録)
+/pc_game/ranking.json

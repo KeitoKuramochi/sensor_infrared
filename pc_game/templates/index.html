@@ -15,10 +15,74 @@
     background: #111318;
     color: #f2f2f2;
     font-family: -apple-system, "Hiragino Sans", sans-serif;
-    gap: 16px;
     overflow: hidden;
   }
+{% if art.bg %}
+  body {
+    background: linear-gradient(rgba(13, 14, 19, 0.84), rgba(13, 14, 19, 0.84)),
+                url("{{ art.bg }}") center / cover fixed, #111318;
+  }
+{% endif %}
   h1 { font-size: 26px; margin: 0; letter-spacing: 0.02em; }
+  #logo { max-height: 72px; max-width: 420px; }
+  #resultArt { max-height: 150px; max-width: 90%; display: none; }
+  #resultArt.show { display: block; }
+
+  /* --- 3カラムレイアウト: 左=遊び方 / 中央=ゲーム / 右=ランキング --- */
+  #layout {
+    display: flex;
+    gap: 28px;
+    align-items: center;
+    justify-content: center;
+  }
+  #center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+  .side-panel {
+    width: 230px;
+    background: rgba(26, 28, 34, 0.88);
+    border-radius: 14px;
+    padding: 16px 18px;
+    font-size: 12.5px;
+    line-height: 1.75;
+    color: #b7bcc6;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.3);
+  }
+  .panel-title {
+    font-weight: 700;
+    color: #f2f2f2;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+  #howtoPanel ul { margin: 0; padding-left: 1.3em; }
+  #howtoPanel li { margin-bottom: 7px; }
+  #howtoPanel b { color: #e8eaf0; }
+  #rankingList { list-style: none; margin: 0; padding: 0; }
+  #rankingList li {
+    display: flex;
+    gap: 7px;
+    align-items: baseline;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+  #rankingList .rank { min-width: 2.2em; font-weight: 700; }
+  #rankingList .r-score { margin-left: auto; font-weight: 700; color: #f2f2f2; }
+  #rankingList .r-score small { font-weight: 400; color: #8a8f9a; }
+  #rankingList .r-stage { color: #9aa0aa; min-width: 3.2em; }
+  #rankingList .r-time { color: #6a707c; font-size: 11px; }
+  #rankingList .new {
+    background: #ffd60a;
+    color: #111;
+    border-radius: 4px;
+    font-size: 9px;
+    padding: 1px 4px;
+    font-weight: 800;
+  }
+  #rankingEmpty { color: #6a707c; }
+  @media (max-width: 1220px) { .side-panel { display: none; } }
 
   #hud {
     display: flex;
@@ -167,14 +231,29 @@
 <body>
   <div id="unlockOverlay">クリックして音を有効化 🔊</div>
 
-  <h1>Color Memory Game</h1>
+  <div id="judgmentPopup"></div>
+
+  <div id="layout">
+  <aside id="howtoPanel" class="side-panel">
+    <div class="panel-title">🎮 あそびかた</div>
+    <ul>
+      <li><b>ON</b> でスタート</li>
+      <li>ノーツが左の輪に重なった瞬間に、<b>同じ色のボタン</b>を押す</li>
+      <li>ピッタリ = <b>EXCELLENT</b><br>すこしズレ = OK<br>大ズレ・見逃し = ❤️ −1</li>
+      <li>❤️は3つ。ステージ5まで行けば <b>ALL CLEAR</b></li>
+      <li><b>Mode</b> = 練習モード<br><b>OFF</b> = 中断してタイトルへ</li>
+    </ul>
+  </aside>
+
+  <div id="center">
+  {% if art.logo %}<img id="logo" src="{{ art.logo }}" alt="Color Memory Game">{% else %}<h1>Color Memory Game</h1>{% endif %}
   <div id="hud">
     <div>Stage <b id="stage">0</b>/{{ total_stages }}</div>
     <div>Score <b id="score">0</b></div>
     <div id="lives"></div>
   </div>
 
-  <div id="judgmentPopup"></div>
+  <img id="resultArt" src="" alt="">
 
   <div id="conveyorWrap">
     <div id="conveyorTrack">
@@ -196,6 +275,14 @@
 
   <div id="message">ONボタンでスタート(Modeで練習モード)</div>
   <div id="best"></div>
+  </div><!-- /#center -->
+
+  <aside id="rankingPanel" class="side-panel">
+    <div class="panel-title">🏆 きょうのランキング</div>
+    <ol id="rankingList"></ol>
+    <div id="rankingEmpty">まだ記録なし。<br>今日の1位になろう!</div>
+  </aside>
+  </div><!-- /#layout -->
 
   <div id="introOverlay">
     <div id="introTitle"></div>
@@ -226,6 +313,37 @@ const unlockEl = document.getElementById('unlockOverlay');
 const COLOR_HEX = {
   {% for c in colors %}"{{ c.name }}": "{{ c.hex }}",{% endfor %}
 };
+const ART = {{ art | tojson }};
+const resultArtEl = document.getElementById('resultArt');
+const rankingListEl = document.getElementById('rankingList');
+const rankingEmptyEl = document.getElementById('rankingEmpty');
+
+let lastRankingJson = '';
+function renderRanking(list, lastId) {
+  const json = JSON.stringify([list, lastId]);
+  if (json === lastRankingJson) return;
+  lastRankingJson = json;
+  rankingEmptyEl.style.display = list.length ? 'none' : 'block';
+  const medals = ['🥇', '🥈', '🥉'];
+  rankingListEl.innerHTML = list.map((e, i) => {
+    const rank = medals[i] || `${i + 1}位`;
+    const stage = e.cleared ? 'クリア!' : `St.${e.stage}`;
+    const isNew = (e.id === lastId) ? '<span class="new">NEW</span>' : '';
+    return `<li><span class="rank">${rank}</span>` +
+           `<span class="r-stage">${stage}</span>` +
+           `<span class="r-time">${e.time}</span>${isNew}` +
+           `<span class="r-score">${e.score}<small>pt</small></span></li>`;
+  }).join('');
+}
+
+function showResultArt(kind) {
+  if (kind && ART[kind]) {
+    resultArtEl.src = ART[kind];
+    resultArtEl.classList.add('show');
+  } else {
+    resultArtEl.classList.remove('show');
+  }
+}
 
 const ZONE_X = 22;
 const SCROLL_SPEED = 0.22; // px/ms、一定速度で流れる
@@ -414,6 +532,9 @@ function tickConveyor() {
 function render(state) {
   stageEl.textContent = state.stage;
   scoreEl.textContent = state.score;
+  renderRanking(state.ranking || [], state.ranking_last_id);
+  showResultArt(state.phase === 'game_over' ? 'gameover'
+                : state.phase === 'all_clear' ? 'allclear' : null);
   bestEl.textContent = (state.best_stage > 0)
     ? `Best Stage: ${state.best_stage}/${TOTAL_STAGES} / Best Score: ${state.best_score}`
     : '';
