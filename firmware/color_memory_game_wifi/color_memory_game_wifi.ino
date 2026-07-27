@@ -49,9 +49,9 @@ struct ColorButton {
 
 ColorButton COLORS[12] = {
     {"Red", 0x1FE20DF},      {"Green", 0x1FEA05F},     {"Blue1", 0x1FE609F},
-    {"Orange", 0x1FEE01F},   {"Lime", 0x1FE10EF},      {"Purple1", 0x1FEF807},
-    {"Yellow", 0x1FE50AF},   {"SkyBlue", 0x1FED827},   {"Pink", 0x1FE708F},
-    {"LightPink", 0x1FE30CF}, {"Blue2", 0x1FEB04F},    {"Purple2", 0x1FE906F},
+    {"Orange", 0x1FEE01F},   {"Lime", 0x1FE10EF},      {"Purple1", 0x1FE906F},
+    {"Yellow", 0x1FE50AF},   {"SkyBlue", 0x1FED827},   {"Pink", 0x1FEF807},
+    {"LightPink", 0x1FE30CF}, {"Blue2", 0x1FEB04F},    {"Purple2", 0x1FE708F},
 };
 constexpr uint8_t NUM_COLORS = 12;
 

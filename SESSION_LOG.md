@@ -12,6 +12,12 @@
 - 次にやること
 ```
 
+## 2026-07-27 - 【真の原因判明】Purple1/Pink/Purple2ずれ問題を解決、IRコードを元の対応に復元
+- 「Purple1を押すとOLEDにPurple2と出る」「Pinkを押すとPurple1と出る」というユーザーの実機報告から逆算し、真の原因を特定: **IRコードは7/21にシリアルモニタで取得した元の対応(Purple1=0x1FE906F / Pink=0x1FEF807 / Purple2=0x1FE708F)が最初から正しかった**。本当のバグは `pc_game/game_server.py` の画面レイアウトで、この3色の名前が誤った位置(Purple2が上・Pinkが下)に割り当てられていたこと。それをファームウェアのコード側を回して直そうとしたため、2回の「修正」(コミット c59ba03, 9886640)がどちらも新たなずれを生んでいた
+- 対応: 両ファームウェアのIRコードを元の対応に復元(コンパイル確認済み)。game_server.py は前回修正済みのレイアウト(読み順: Purple1=右列2段目 / Pink=右列3段目 / Purple2=右列4段目、実物写真 site/images/remote.jpg と照合済み)を維持
+- ユーザー側の残作業: ①ESP32へ `color_memory_game_wifi.ino` を再書き込み ②`game_server.py` を再起動 ③ブラウザのページを再読み込み。この3つが揃えば Purple1押下→OLED「Purple1」→画面の右列2段目が光る、で一致するはず
+- 次にやること: 上記の反映後に通しプレイ確認(前回からの持ち越し: PCのIP確認 → `wifi_config.h` の `PC_SERVER_HOST` 更新も未完なら合わせて)
+
 ## 2026-07-27 - Purple1/Pink/Purple2のIRコード再訂正(実機確認による最終版)
 - 直前のエントリで修正した3色の対応がまだ違っていたとユーザーから訂正。最終的な正しい対応は Purple1=0x1FEF807 / Pink=0x1FE708F / Purple2=0x1FE906F
 - WiFi版 `color_memory_game_wifi.ino` はユーザーが直接修正済み。スタンドアロン版 `color_memory_game.ino` の COLORS[] を同じ対応に揃えた。`pc_game/game_server.py` はIRコードを持たず色名・配置も不変のため変更なし
