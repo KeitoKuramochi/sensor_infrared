@@ -347,13 +347,17 @@ def bt_reader():
             continue
         try:
             with serial.Serial(port, 115200, timeout=1) as ser:
-                print(f"[BT] 接続しました: {port}")
+                print(f"[BT] ポートを開きました: {port} (ESP32からの信号待ち...)")
                 waiting_logged = False
                 last_rx = time.time()
+                link_confirmed = False
                 while True:
                     name = ser.readline().decode(errors="ignore").strip()
                     if name:
                         last_rx = time.time()
+                        if not link_confirmed:
+                            link_confirmed = True
+                            print("[BT] ESP32からの受信を確認 — リンク正常、リモコン操作OKです")
                         if name == "PING":
                             continue
                         print(f"[BT] Button: {name}")
@@ -363,7 +367,9 @@ def bt_reader():
                         break  # withを抜けてポートを閉じ、開き直す
             time.sleep(1)
         except (serial.SerialException, OSError) as e:
-            print(f"[BT] 切断されました ({e}) — 3秒後に再接続を試みます")
+            print(f"[BT] ポートを開けませんでした/切断されました ({e})")
+            print("[BT] 3秒後に再試行します (ESP32の起動直後はBluetoothが"
+                  "立ち上がるまで1〜2分かかることがあります)")
             time.sleep(3)
 
 
