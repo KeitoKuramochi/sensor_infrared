@@ -12,6 +12,15 @@
 - 次にやること
 ```
 
+## 2026-07-27 - Bluetooth接続対応(WiFi不要化)
+- ユーザーの依頼「ESP32を起動したらBluetoothだけでPCとつながるように」に対応。WiFiルーター・IPアドレス設定(wifi_config.h)が一切不要になる構成に変更
+- 新ファームウェア `firmware/color_memory_game_bt/color_memory_game_bt.ino` を作成: Bluetooth Classic (SPP、デバイス名「ColorMemoryGame」)でボタン名を1行ずつ送信。OLEDに接続状態(Waiting for PC... / PC connected!)を表示。IRコードは★確定版をそのまま使用。標準パーティションでコンパイル確認済み(フラッシュ89%)
+- `pc_game/game_server.py` にBluetooth受信スレッドを追加: `/dev/cu.ColorMemoryGame*` を自動検出してpyserialで読み取り、HTTPと同じ `handle_button()` に流す。未検出・切断時は3秒おきに再試行(ESP32の電源ON/OFFに追従)。HTTP経路(/button)はブラウザのクリックテストとWiFi版のために残置。pyserial未導入でも起動可能(BT受信のみ無効)
+- PCに pyserial 3.5 をインストール済み。テストクライアントでBT待機ログ・HTTP経路・handle_button直呼びの全経路の動作確認済み
+- README.md をBluetooth構成を主として書き換え(mermaid図、セットアップ手順=書き込み→ペアリング→サーバー起動、WiFi版は折りたたみの代替手順に格下げ、リポジトリ構成)
+- ユーザー側の残作業: ①ESP32に `color_memory_game_bt.ino` を書き込み ②Macのシステム設定>Bluetoothで「ColorMemoryGame」をペアリング ③起動中の `game_server.py` を再起動(オーバーレイ修正も同時に反映される) ④ブラウザ再読み込み → 通しプレイ確認
+- 次にやること: 上記の通しプレイ確認。問題なければWiFi版起動時の持ち越しタスク(PC_SERVER_HOST設定)は不要になる
+
 ## 2026-07-27 - ステージ開始時のオーバーレイが半透明で、裏の16拍コンベアが透けて見えるバグを修正
 - ユーザー報告: 「Stage N」の暗転表示中に、裏でもう16拍のノーツ(太鼓の達人風コンベア)が流れ始めているのが透けて見えて分かりにくい
 - 原因: `pc_game/templates/index.html` の `#introOverlay` の背景が `rgba(10, 11, 14, 0.85)`(不透明度85%)だったため、裏のコンベアが薄く透けていた。仕様上、コンベア自体はサーバーの `stage_start_time` に同期して裏で先に構築・スクロールを開始する設計(通信遅延分のズレを避けるため)なので、コンベア自体を止める修正ではなく、オーバーレイを完全不透明の `#0a0b0e` に変更して裏を完全に隠す形で対応

@@ -7,12 +7,15 @@ ESP32はIRリモコンのボタンを受信してこのサーバーに POST /but
 ブラウザの表示がどれだけ揺れても採点自体はブレない。
 
 起動方法:
-    pip install flask
+    pip install flask pyserial
     python3 game_server.py
-    ブラウザで http://<このPCのIP>:8000/ を開く
+    ブラウザで http://localhost:8000/ を開く
 
-ESP32側 (firmware/color_memory_game_wifi/color_memory_game_wifi.ino) から
-このPCのIPの :8000/button にボタン名がPOSTされてくる想定。
+ESP32からのボタン入力は2経路どちらでも受けられる:
+  - Bluetooth版 (firmware/color_memory_game_bt): Macとペアリング済みなら
+    /dev/cu.ColorMemoryGame を自動検出してシリアル受信する(推奨。WiFi設定不要)
+  - WiFi版 (firmware/color_memory_game_wifi): このPCのIPの :8000/button に
+    ボタン名がPOSTされてくる
 
 ゲーム仕様:
     - 全5ステージ、各ステージは16拍の固定パターン
@@ -24,11 +27,17 @@ ESP32側 (firmware/color_memory_game_wifi/color_memory_game_wifi.ino) から
     - ライフが尽きたらゲームオーバー、5ステージ全部クリアしたらALL CLEAR
 """
 
+import glob
 import random
 import threading
 import time
 
 from flask import Flask, jsonify, render_template, request
+
+try:
+    import serial  # pyserial (Bluetooth受信用。無くてもWiFi/ブラウザ経由は動く)
+except ImportError:
+    serial = None
 
 app = Flask(__name__)
 
@@ -300,6 +309,52 @@ def post_button():
     return jsonify({"ok": True})
 
 
+# --- Bluetooth受信 (firmware/color_memory_game_bt 用) ---
+# ESP32をMacとペアリングすると /dev/cu.ColorMemoryGame というポートが生える。
+# それを開いた時点でBluetooth接続が確立し、ボタン名が1行ずつ流れてくる。
+
+BT_PORT_PATTERNS = ["/dev/cu.ColorMemoryGame*", "/dev/tty.ColorMemoryGame*"]
+
+
+def find_bt_port():
+    for pattern in BT_PORT_PATTERNS:
+        matches = glob.glob(pattern)
+        if matches:
+            return matches[0]
+    return None
+
+
+def bt_reader():
+    """BluetoothシリアルからESP32のボタン名を読み、HTTPと同じ handle_button に流す。
+    ポート未検出・切断時は数秒おきに再試行し続ける(ESP32の電源ON/OFFに追従)。"""
+    if serial is None:
+        print("[BT] pyserial が無いためBluetooth受信は無効です (pip install pyserial)")
+        return
+    waiting_logged = False
+    while True:
+        port = find_bt_port()
+        if port is None:
+            if not waiting_logged:
+                print("[BT] Bluetoothポート待機中... "
+                      "(Macの設定でESP32「ColorMemoryGame」をペアリングしてください)")
+                waiting_logged = True
+            time.sleep(3)
+            continue
+        try:
+            with serial.Serial(port, 115200, timeout=1) as ser:
+                print(f"[BT] 接続しました: {port}")
+                waiting_logged = False
+                while True:
+                    name = ser.readline().decode(errors="ignore").strip()
+                    if name:
+                        print(f"[BT] Button: {name}")
+                        handle_button(name)
+        except (serial.SerialException, OSError) as e:
+            print(f"[BT] 切断されました ({e}) — 3秒後に再接続を試みます")
+            time.sleep(3)
+
+
 if __name__ == "__main__":
     threading.Thread(target=stage_ticker, daemon=True).start()
+    threading.Thread(target=bt_reader, daemon=True).start()
     app.run(host="0.0.0.0", port=8000, debug=False)

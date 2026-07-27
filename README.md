@@ -11,13 +11,14 @@
 ```mermaid
 flowchart LR
     R["リモコン<br>(12色 + ON/OFF ボタン)"] -- 赤外線 --> E["ESP32<br>VS838で受信して<br>ボタン名をPCへ転送"]
-    E -- "WiFi (HTTP POST)" --> P["PC<br>Flaskサーバー :8000<br>ゲームロジック・判定"]
+    E -- "Bluetooth (SPP)" --> P["PC<br>Flaskサーバー :8000<br>ゲームロジック・判定"]
     P --> B["ブラウザ<br>16拍のリズムレーン表示"]
 ```
 
-ESP32は「どのボタンが押されたか」をWiFiでPCに送るだけのブリッジ役。
+ESP32は「どのボタンが押されたか」をBluetoothでPCに送るだけのブリッジ役。
 ゲーム本体(パターン生成・タイミング判定・スコア・ライフ管理)はPC側のPythonで動き、
-画面はブラウザに表示されます。
+画面はブラウザに表示されます。WiFi経由で送る旧構成(`color_memory_game_wifi`)も残してあり、
+サーバーはどちらの経路からの入力も受け付けます。
 
 ## 必要なもの
 
@@ -26,8 +27,7 @@ ESP32は「どのボタンが押されたか」をWiFiでPCに送るだけのブ
 | リモコン式LEDライト | 100円ショップで購入(300円商品)。中の赤外線受信部品(VS838)とリモコンを使う |
 | ESP32開発ボード | ESP-WROOM-32。今回はOLED(SSD1306 128x64)一体型の ideaspark 製を使用 |
 | ブレッドボード・ジャンパー線 | 受信部品とESP32の接続用 |
-| WiFi環境 | ESP32とPCが同じネットワークに入れればOK(モバイルルーターでも可) |
-| PC | Python 3 が動けばOK(Mac/Windows/Linux) |
+| PC | Python 3 が動き、Bluetoothが使えればOK。WiFi版を使う場合のみWiFi環境(モバイルルーター可)が必要 |
 
 ## 配線
 
@@ -46,42 +46,57 @@ OLED一体型ボードの場合、画面の配線は不要です(I2C: SDA=21 / S
 
 ## セットアップ手順
 
-### 1. PC側(ゲームサーバー)
-
-```bash
-pip install flask
-python3 pc_game/game_server.py
-```
-
-ブラウザで `http://localhost:8000/` を開くとゲーム画面が表示されます。
-あわせて、ESP32から届くようにPC自身のIPアドレスを確認しておきます(Macなら `ipconfig getifaddr en0`)。
-
-### 2. ESP32側(ファームウェア)
+### 1. ESP32側(ファームウェア)
 
 1. Arduino IDE に ESP32 ボードサポート(Espressif の `esp32`)を追加
 2. ライブラリマネージャーから以下をインストール
    - `IRremoteESP8266`(crankyoldgit)
    - `Adafruit SSD1306` / `Adafruit GFX Library`
-3. WiFi設定ファイルを作成:
+3. `firmware/color_memory_game_bt/color_memory_game_bt.ino` をESP32に書き込み
+
+起動するとOLEDに `BT: ColorMemoryGame / Waiting for PC...` と表示されます。
+
+### 2. Macとペアリング(初回のみ)
+
+システム設定 > Bluetooth を開き、「ColorMemoryGame」を接続します。
+ペアリングされると `/dev/cu.ColorMemoryGame` というシリアルポートが生えます。
+
+### 3. PC側(ゲームサーバー)
+
+```bash
+pip install flask pyserial
+python3 pc_game/game_server.py
+```
+
+ブラウザで `http://localhost:8000/` を開くとゲーム画面が表示されます。
+サーバーがBluetoothポートを自動検出して接続し、ESP32のOLEDが `PC connected!` に
+変われば準備完了です(ESP32の電源を入れ直しても自動で再接続します)。
+
+<details>
+<summary>旧構成: WiFi経由で使う場合(color_memory_game_wifi)</summary>
+
+1. WiFi設定ファイルを作成:
 
    ```bash
    cp firmware/color_memory_game_wifi/wifi_config.example.h \
       firmware/color_memory_game_wifi/wifi_config.h
    ```
 
-   `wifi_config.h` を開いて、WiFiのSSID/パスワードと、手順1で確認したPCのIPアドレス
-   (`PC_SERVER_HOST`)を書き込みます。このファイルは `.gitignore` 済みなのでコミットされません。
-4. `firmware/color_memory_game_wifi/color_memory_game_wifi.ino` をESP32に書き込み
+2. `wifi_config.h` にWiFiのSSID/パスワードと、ゲームサーバーを動かすPCのIPアドレス
+   (Macなら `ipconfig getifaddr en0` で確認)を書き込みます。
+   このファイルは `.gitignore` 済みなのでコミットされません。
+3. `firmware/color_memory_game_wifi/color_memory_game_wifi.ino` をESP32に書き込み。
+   起動するとOLEDにWiFi接続状況が表示され、接続に成功するとESP32のIPアドレスが出ます。
 
-起動するとOLEDにWiFi接続状況が表示され、接続に成功するとESP32のIPアドレスが出ます。
+</details>
 
-### 3. リモコンのIRコードが違う場合
+### 4. リモコンのIRコードが違う場合
 
 リモコンの個体・製品が違うとIRコードも異なります。その場合は:
 
 1. スケッチを書き込んだ状態でシリアルモニタ(115200bps)を開く
 2. リモコンのボタンを押すと `Unknown code: 0x......` と表示される
-3. その値を `color_memory_game_wifi.ino` の `COLORS[]` / `BTN_ON_CODE` / `BTN_OFF_CODE` /
+3. その値を `color_memory_game_bt.ino` の `COLORS[]` / `BTN_ON_CODE` / `BTN_OFF_CODE` /
    `BTN_MODE_CODE` に書き写す
 
 ## 遊び方
@@ -101,7 +116,8 @@ python3 pc_game/game_server.py
 
 ```
 firmware/
-├── color_memory_game_wifi/   # ★ 現行版: IR受信→WiFiブリッジ(これを書き込む)
+├── color_memory_game_bt/     # ★ 現行版: IR受信→Bluetoothブリッジ(これを書き込む)
+├── color_memory_game_wifi/   # 旧構成: IR受信→WiFiブリッジ(WiFi環境がある場合の代替)
 ├── color_memory_game/        # 旧版: ESP32単体で完結する色記憶ゲーム(要WS2812配線・未解決)
 ├── oled_i2c_scan/            # OLEDのI2Cピンを特定する診断ツール
 └── presence_light/           # 実験: 人感ライト構想のスケッチ
