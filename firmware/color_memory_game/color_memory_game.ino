@@ -75,13 +75,13 @@ ColorButton COLORS[12] = {
     {"Blue1", 0x1FE609F, 0, 0, 255},
     {"Orange", 0x1FEE01F, 230, 120, 0},
     {"Lime", 0x1FE10EF, 150, 200, 0},
-    {"Purple1", 0x1FE708F, 128, 0, 200},
+    {"Purple1", 0x1FEF807, 128, 0, 200},
     {"Yellow", 0x1FE50AF, 220, 200, 0},
     {"SkyBlue", 0x1FED827, 100, 180, 255},
-    {"Pink", 0x1FE906F, 230, 0, 150},
+    {"Pink", 0x1FE708F, 230, 0, 150},
     {"LightPink", 0x1FE30CF, 200, 150, 200},
     {"Blue2", 0x1FEB04F, 0, 80, 220},
-    {"Purple2", 0x1FEF807, 90, 0, 160},
+    {"Purple2", 0x1FE906F, 90, 0, 160},
 };
 constexpr uint8_t NUM_COLORS = 12;
 

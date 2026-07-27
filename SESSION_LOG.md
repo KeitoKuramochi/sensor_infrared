@@ -12,6 +12,12 @@
 - 次にやること
 ```
 
+## 2026-07-27 - Purple1/Pink/Purple2のIRコード再訂正(実機確認による最終版)
+- 直前のエントリで修正した3色の対応がまだ違っていたとユーザーから訂正。最終的な正しい対応は Purple1=0x1FEF807 / Pink=0x1FE708F / Purple2=0x1FE906F
+- WiFi版 `color_memory_game_wifi.ino` はユーザーが直接修正済み。スタンドアロン版 `color_memory_game.ino` の COLORS[] を同じ対応に揃えた。`pc_game/game_server.py` はIRコードを持たず色名・配置も不変のため変更なし
+- 両ファームウェアとも arduino-cli でコンパイル確認済み。GitHubへプッシュ済み
+- 次にやること: 前回の続き — PCをモバイルWiFiルーターに接続してIP確認 → `wifi_config.h` の `PC_SERVER_HOST` 更新 → `game_server.py` 起動 → ESP32へWiFiブリッジ版書き込み → 通しプレイ確認
+
 ## 2026-07-27 - Purple1/Pink/Purple2のIRコード対応を全ゲームコードで修正
 - ユーザーから「これが正しい並び」としてリモコン12色ボタンの正しいIRコード対応が提示された(Purple1=0x1FE708F / Pink=0x1FE906F / Purple2=0x1FEF807。この3つのラベル付けが従来ずれていた)
 - WiFi版 `firmware/color_memory_game_wifi/color_memory_game_wifi.ino` は既に修正済み(未コミット状態)だったため、残りを揃えた: ①スタンドアロン版 `firmware/color_memory_game/color_memory_game.ino` の COLORS[] の3コードを入れ替え(RGB値は色名どおりなので据え置き) ②`pc_game/game_server.py` の COLORS を読み順(Red→Green→Blue1→…→Purple2)に並べ替え、右列(col 2)の名前を row3=Purple1 / row4=Pink / row5=Purple2 に修正(hexは物理ボタンの見た目なので位置に据え置き)
