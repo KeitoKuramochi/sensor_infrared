@@ -24,8 +24,11 @@ id_ed25519.pub
 wifi_config.h
 
 # 作業用の元写真・元動画(公開ページ用の縮小版は site/ にコミットする)
-IMG_*.jpeg
-IMG_*.MOV
+# リポジトリ直下に置いた撮影ファイルはコミットしない
+/*.jpeg
+/*.jpg
+/*.MOV
+/*.mov
 
 # Python
 __pycache__/
