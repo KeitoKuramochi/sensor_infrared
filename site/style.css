@@ -524,3 +524,105 @@ footer {
   height: 10px;
   border-radius: 3px;
 }
+
+/* ---------- 目次(フローティング・ジャンプナビ) ---------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+html {
+  scroll-padding-top: 24px;
+}
+
+#jumpnav {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 30;
+}
+
+#jumpnav summary {
+  list-style: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+#jumpnav summary::-webkit-details-marker {
+  display: none;
+}
+
+.jumpnav-dots {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+}
+
+.jumpnav-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 2.5px;
+}
+
+#jumpnav nav {
+  position: absolute;
+  right: 0;
+  bottom: 64px;
+  width: 220px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  animation: jumpnavIn 160ms ease-out;
+}
+
+@keyframes jumpnavIn {
+  0%   { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+#jumpnav nav a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+#jumpnav nav a:hover {
+  background: var(--panel);
+}
+
+#jumpnav nav .dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+@media (max-width: 520px) {
+  #jumpnav {
+    right: 14px;
+    bottom: 14px;
+  }
+  #jumpnav nav {
+    width: 200px;
+  }
+}

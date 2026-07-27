@@ -16,6 +16,27 @@
 </head>
 <body>
 
+<details id="jumpnav">
+  <summary aria-label="目次を開く">
+    <span class="jumpnav-dots" aria-hidden="true">
+      <span style="background:var(--c-red)"></span><span style="background:var(--c-blue)"></span>
+      <span style="background:var(--c-lime)"></span><span style="background:var(--c-purple)"></span>
+    </span>
+  </summary>
+  <nav aria-label="目次">
+    <a href="#demo"><span class="dot" style="background:var(--c-red)"></span>デモ動画</a>
+    <a href="#message"><span class="dot" style="background:var(--c-green)"></span>伝えたいこと</a>
+    <a href="#origin"><span class="dot" style="background:var(--c-orange)"></span>きっかけ</a>
+    <a href="#treasure"><span class="dot" style="background:var(--c-yellow)"></span>100均は部品の宝庫</a>
+    <a href="#why"><span class="dot" style="background:var(--c-blue)"></span>なぜこれを選んだか</a>
+    <a href="#teardown"><span class="dot" style="background:var(--c-purple)"></span>分解</a>
+    <a href="#gear"><span class="dot" style="background:var(--c-sky)"></span>使った機材</a>
+    <a href="#howto"><span class="dot" style="background:var(--c-lime)"></span>作り方(技術)</a>
+    <a href="#summary"><span class="dot" style="background:var(--accent)"></span>まとめ</a>
+    <a href="#postscript"><span class="dot" style="background:var(--c-sky)"></span>後日談(追記)</a>
+  </nav>
+</details>
+
 <header class="hero">
   <div class="hero-inner">
     <div class="kicker">PHYSICAL AI ・ 工作記</div>
@@ -502,5 +523,13 @@
   </div>
 </footer>
 
+<script>
+  // 目次のリンクをタップしたら、ジャンプ後にメニューを自動で閉じる
+  document.querySelectorAll('#jumpnav nav a').forEach(function (a) {
+    a.addEventListener('click', function () {
+      document.getElementById('jumpnav').removeAttribute('open');
+    });
+  });
+</script>
 </body>
 </html>
