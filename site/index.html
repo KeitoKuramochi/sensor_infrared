@@ -44,10 +44,10 @@
       まずは動いているところを見てください。
     </p>
     <div class="video-wrap">
-      <video controls preload="metadata" poster="images/wiring-1.jpg" src="videos/demo.mp4">
+      <video controls preload="metadata" poster="images/demo-poster.jpg" src="videos/demo.mp4">
         お使いのブラウザは動画再生に対応していません。
       </video>
-      <p class="video-note">▶ リモコンでリズムよく色ボタンを押している様子(音が出ます)</p>
+      <p class="video-note">▶ リモコンでリズムよく色ボタンを押している様子(音が出ます)。画面のゲームと一緒に、LEDライト本体の色も変わります</p>
     </div>
   </section>
 
@@ -118,12 +118,11 @@
         </a>
         <figcaption>100均で見つけた「部品として使えそうなもの」たち(クリックで拡大)</figcaption>
       </figure>
-      <!-- 📷 追加写真プレースホルダ: 100円ショップの売り場・パッケージ入り状態の写真
-           写真を site/images/ に置いたら、この photo-placeholder を
-           上と同じ figure.photo(a.zoom + img + figcaption)に差し替えてください。 -->
-      <figure class="photo-placeholder">
-        <div class="frame">📷 ここに「100円ショップで売られているパッケージ入り状態」の写真が入ります</div>
-        <figcaption>売り場で見つけたときの様子(写真は後日追加予定)</figcaption>
+      <figure class="photo">
+        <a class="zoom" href="images/package-sensor.jpg" target="_blank" rel="noopener">
+          <img src="images/package-sensor.jpg" alt="100円ショップの売り場に吊るされたセンサーライトのパッケージ。税込330円" loading="lazy">
+        </a>
+        <figcaption>売り場で見つけた人感センサーライト(税込330円)。「人が近づくと自動で点灯・消灯」</figcaption>
       </figure>
     </div>
   </section>
@@ -147,12 +146,20 @@
       「これだけ遊べそうなものが300円で買える」——それがこのセットを買った理由です。
     </p>
 
-    <figure class="photo compact">
-      <a class="zoom" href="images/remote.jpg" target="_blank" rel="noopener">
-        <img src="images/remote.jpg" alt="付属のリモコン。ON/OFF/Modeボタンと12色のカラーボタンが並んでいる" loading="lazy">
-      </a>
-      <figcaption>付属のリモコン。ON / OFF / Mode に加えて<strong>12色のカラーボタン</strong>が並ぶ。この「色の多さ」が後でゲームに化ける</figcaption>
-    </figure>
+    <div class="photo-grid">
+      <figure class="photo">
+        <a class="zoom" href="images/package-light.jpg" target="_blank" rel="noopener">
+          <img src="images/package-light.jpg" alt="売り場で手に取ったリモコンライト[イルミネーション]のパッケージ。税込330円" loading="lazy">
+        </a>
+        <figcaption>売り場で手に取った「リモコンライト[イルミネーション]」(税込330円)。これが今回の主役</figcaption>
+      </figure>
+      <figure class="photo">
+        <a class="zoom" href="images/remote.jpg" target="_blank" rel="noopener">
+          <img src="images/remote.jpg" alt="付属のリモコン。ON/OFF/Modeボタンと12色のカラーボタンが並んでいる" loading="lazy">
+        </a>
+        <figcaption>付属のリモコン。ON / OFF / Mode に加えて<strong>12色のカラーボタン</strong>が並ぶ。この「色の多さ」が後でゲームに化ける</figcaption>
+      </figure>
+    </div>
   </section>
 
   <!-- ============================================================
@@ -360,6 +367,19 @@
         <text class="dg-text-small" x="557" y="198" text-anchor="middle">画面(OLED)は基板に一体型</text>
       </svg>
       <figcaption>配線図。VS838の OUT → GPIO27、GND → GND、VCC → 3V3 の3本だけ</figcaption>
+    </figure>
+
+    <p>
+      基板から線を取り出すところは、はんだ付けをしました。はんだ付けをするのは
+      <strong>中学生の技術の授業以来</strong>でしたが、はんだごても100円ショップで手に入るし、
+      やり方はYouTubeの動画で思い出せました。このハードルも、思っていたよりずっと低かったです。
+    </p>
+
+    <figure class="photo compact">
+      <a class="zoom" href="images/soldered-wires.jpg" target="_blank" rel="noopener">
+        <img src="images/soldered-wires.jpg" alt="LEDライトの基板にジャンパー線をはんだ付けした様子" loading="lazy">
+      </a>
+      <figcaption>基板にジャンパー線をはんだ付けしたところ。中学生以来のはんだ付けも、100均の道具とYouTubeでなんとかなった</figcaption>
     </figure>
 
     <h3><span class="step-no">STEP 3</span>リモコンの「暗号」を解読する</h3>
