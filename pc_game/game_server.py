@@ -283,15 +283,22 @@ def extend_practice_notes():
 
 
 def practice_window():
-    """クライアントに送る、これから流れてくるノーツの一覧。"""
+    """クライアントに送る、これから流れてくるノーツの一覧。
+
+    color が入っているビートは色ノーツ、間のビートは「空ビート」として輪だけ流す
+    (本編と同じく、リズムの手がかりとメトロノーム音になる)。そのためノーツだけでなく
+    描画すべきビート範囲 window も一緒に渡す。
+    """
     p = state["practice"]
     if p is None:
         return None
+    beats = p["notes"].keys()
     return {
         "start_time": p["start_time"],
         "note_every": PRACTICE_NOTE_EVERY,
         "next_index": p["next_index"],
         "notes": [{"beat": b, "color": c} for b, c in sorted(p["notes"].items())],
+        "window": [min(beats), max(beats)] if beats else None,
     }
 
 

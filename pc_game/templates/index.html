@@ -275,7 +275,15 @@
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 12px;
   }
-  .ts-dot { width: 15px; height: 15px; border-radius: 50%; }
+  /* 1秒ごとに巡回する「今ここ」のハイライト。実機リモコンの同じ色のボタンも同時に光る */
+  .ts-row.ts-active {
+    background: rgba(255, 255, 255, 0.11);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateX(3px);
+  }
+  .ts-row.ts-active .ts-dot { transform: scale(1.35); }
+  .ts-row { transition: background 180ms ease, border-color 180ms ease, transform 180ms ease; }
+  .ts-dot { width: 15px; height: 15px; border-radius: 50%; transition: transform 180ms ease; }
   .ts-score { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
   .ts-score small { font-size: 11px; font-weight: 600; color: var(--text-3); margin-left: 2px; }
   .ts-label { font-size: 13.5px; font-weight: 700; color: var(--cyan); }
@@ -304,6 +312,31 @@
   @media (max-width: 560px) {
     .ts-row { grid-template-columns: 16px 70px 1fr; }
     .ts-hint { display: none; }
+  }
+
+  /* 目標選択中のレイアウト。
+     縦に積むとリモコンが画面外に切れてしまうので、サイドパネルを隠して空いた横幅を使い、
+     目標リストとリモコンを「横並び」にする(どのボタンを押せばいいか見比べられる)。 */
+  body.selecting #conveyorWrap,
+  body.selecting #logo,
+  body.selecting h1,
+  body.selecting .side-panel,
+  body.selecting #best { display: none; }
+  body.selecting #layout { gap: 0; }
+  body.selecting #center {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 22px;
+  }
+  /* HUDとメッセージは横並びの列に混ざらないよう、それぞれ独立した行にする */
+  body.selecting #hud { flex-basis: 100%; justify-content: center; }
+  body.selecting #message { flex-basis: 100%; }
+  body.selecting #targetSelect { width: min(470px, 60vw); }
+  /* 画面が低いときは目安の累計点表を落として高さを稼ぐ */
+  @media (max-height: 700px) {
+    body.selecting .ts-bench { display: none; }
   }
 
   #message { font-size: 15.5px; min-height: 22px; color: #c6ccd8; text-align: center; letter-spacing: 0.02em; }
@@ -691,6 +724,7 @@ const COLOR_HEX = {
   {% for c in colors %}"{{ c.name }}": "{{ c.hex }}",{% endfor %}
 };
 const ART = {{ art | tojson }};
+const TARGET_PRESETS = {{ target_presets | tojson }};
 const resultArtEl = document.getElementById('resultArt');
 const targetSelectEl = document.getElementById('targetSelect');
 const targetChipEl = document.getElementById('targetChip');
@@ -929,24 +963,29 @@ function resetPracticeConveyor() {
 }
 
 function syncPracticeConveyor(practice) {
-  if (!practice) return;
+  if (!practice || !practice.window) return;
   if (practiceStartPerf === null) {
     practiceStartPerf = syncedStartPerf(practice.start_time);
     scheduleCountIn(practiceStartPerf);
     if (rafHandle) cancelAnimationFrame(rafHandle);
     tickConveyor();
   }
-  practice.notes.forEach(({ beat, color }) => {
-    if (spawnedBeats.has(beat)) return;
+  // 色ノーツの無いビートも「空ビート」として輪を流す。本編と同じく、リズムの目安と
+  // メトロノーム音(playChi)になるので、これが無いと拍が取れず非常に叩きにくい。
+  const colorByBeat = new Map(practice.notes.map(n => [n.beat, n.color]));
+  const [first, last] = practice.window;
+  for (let beat = first; beat <= last; beat++) {
+    if (spawnedBeats.has(beat)) continue;
     spawnedBeats.add(beat);
+    const color = colorByBeat.has(beat) ? colorByBeat.get(beat) : null;
     slots.push({
       idx: beat,
-      type: 'color',
+      type: color !== null ? 'color' : 'empty',
       arrival: practiceStartPerf + beat * BEAT_INTERVAL_MS,
       el: makeNoteEl(color),
       ticked: false,
     });
-  });
+  }
 }
 
 function tickConveyor() {
@@ -981,6 +1020,35 @@ function gachaSuffix(gacha) {
   if (gacha.status === 'ok') return ' 🎉 ガチャのロックを解除しました!';
   if (gacha.status === 'error') return ' ⚠️ ガチャ機につながりませんでした(ESP32の電源とBLEを確認)';
   return '';
+}
+
+// --- 目標選択中のガイド ---
+// 画面のリストに色の丸を出すだけでは「その色が実物のどのボタンか」が分からないので、
+// 1秒ごとに かんたん→…→神 の順で、リストの行と実機リモコンの該当ボタンを同時に
+// ハイライトして対応を示す。
+let tsCycleIdx = 0;
+let tsCycleTimer = null;
+const tsRowEls = () => Array.from(document.querySelectorAll('#targetSelect .ts-row'));
+
+function tsCycleStep() {
+  const rows = tsRowEls();
+  if (!rows.length) return;
+  tsCycleIdx = tsCycleIdx % TARGET_PRESETS.length;
+  rows.forEach((r, i) => r.classList.toggle('ts-active', i === tsCycleIdx));
+  highlight(TARGET_PRESETS[tsCycleIdx].key);
+  tsCycleIdx++;
+}
+
+function startTargetCycle() {
+  if (tsCycleTimer !== null) return;
+  tsCycleIdx = 0;
+  tsCycleStep();
+  tsCycleTimer = setInterval(tsCycleStep, 1000);
+}
+
+function stopTargetCycle() {
+  if (tsCycleTimer !== null) { clearInterval(tsCycleTimer); tsCycleTimer = null; }
+  tsRowEls().forEach(r => r.classList.remove('ts-active'));
 }
 
 // 目標に届いたかどうかを結果画面に出す
@@ -1035,7 +1103,11 @@ function render(state) {
   practiceChipEl.style.display = practicing ? '' : 'none';
   if (showTarget) targetScoreEl.textContent = state.target_score;
 
-  targetSelectEl.classList.toggle('show', state.phase === 'target_select');
+  const selecting = state.phase === 'target_select';
+  targetSelectEl.classList.toggle('show', selecting);
+  // 目標選択中はレーンを隠してリモコンを画面内に収める(縦に長くなって切れるのを防ぐ)
+  document.body.classList.toggle('selecting', selecting);
+  if (!selecting) stopTargetCycle();
   if (state.phase !== 'practice') resetPracticeConveyor();
 
   if (state.phase === 'idle') {
@@ -1048,8 +1120,8 @@ function render(state) {
     currentStageKey = null;
     stopConveyor();
     renderLives(STARTING_LIVES);
-    highlight(null);
-    messageEl.textContent = '目標点数を色ボタンでえらんでね';
+    startTargetCycle();   // ハイライトは1秒ごとの巡回に任せる
+    messageEl.textContent = '光っているボタンの色をおすと、その目標でスタート';
   } else if (state.phase === 'practice') {
     currentStageKey = null;
     renderLives(STARTING_LIVES);
