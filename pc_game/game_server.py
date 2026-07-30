@@ -74,6 +74,13 @@ EXCELLENT_COMBO_BONUS = 3
 OK_SCORE = 15
 OK_COMBO_BONUS = 1
 
+# --- ガチャロック解除 (友人(MaedaReno)制作の gacha-machine プロジェクトとの連携) ---
+# ガチャ機側のESP32には firmware/gacha_lock_ble を書き込む。BLEで「GachaLock」として
+# アドバタイズし、コマンド用キャラクタリスティックに "UNLOCK" を書き込むとサーボ錠を解錠する。
+# WiFiの繋ぎ変えが不要で、色記憶ゲーム側のBLE接続(ColorMemoryGame)とも共存できる。
+GACHA_UNLOCK_SCORE = int(os.environ.get("GACHA_UNLOCK_SCORE", "500"))
+GACHA_TIMEOUT_SEC = 5
+
 lock = threading.Lock()
 state = {
     "phase": "idle",  # idle | practice | playing | stage_clear | game_over | all_clear
@@ -92,6 +99,9 @@ state = {
     "practice_last": None,    # 練習モード中に最後に押された色
     "message": "",
     "last_action": time.time(),
+    # ガチャ解錠の状況。eligible=このゲームは閾値スコアに到達したか。
+    # status: None(対象外) | "pending"(解錠リクエスト送信中) | "ok"(成功) | "error"(失敗)
+    "gacha": {"eligible": False, "status": None, "detail": ""},
 }
 
 
@@ -182,7 +192,47 @@ def start_game():
     state["lives"] = STARTING_LIVES
     state["score"] = 0
     state["combo"] = 0
+    state["gacha"] = {"eligible": False, "status": None, "detail": ""}
     start_stage(1)
+
+
+def _request_gacha_unlock():
+    """ガチャ機のESP32(BLE)に解錠コマンドを送る(別スレッドで実行、失敗しても無視する)。"""
+    import asyncio
+
+    with gacha_ble_state_lock:
+        client = gacha_ble_state["client"]
+        loop = gacha_ble_state["loop"]
+
+    if client is None or loop is None:
+        ok, detail = False, "ガチャ機(GachaLock)にBLE接続していません"
+    else:
+        async def do_write():
+            await client.write_gatt_char(
+                GACHA_BLE_RX_CHAR_UUID, b"UNLOCK", response=False)
+
+        try:
+            future = asyncio.run_coroutine_threadsafe(do_write(), loop)
+            future.result(timeout=GACHA_TIMEOUT_SEC)
+            ok, detail = True, ""
+        except Exception as e:
+            ok, detail = False, str(e)
+
+    with lock:
+        state["gacha"]["status"] = "ok" if ok else "error"
+        if detail:
+            state["gacha"]["detail"] = detail
+    print(f"[GACHA] 解錠コマンド{'送信成功' if ok else '送信失敗'}: {detail}")
+
+
+def maybe_unlock_gacha():
+    """ゲーム終了時に呼ぶ。スコアが閾値以上ならガチャの解錠をバックグラウンドで試みる。
+    (呼び出し元がすでに lock を保持している前提。ネットワーク待ちで長引かないよう別スレッドに逃がす)"""
+    if state["score"] >= GACHA_UNLOCK_SCORE:
+        state["gacha"] = {"eligible": True, "status": "pending", "detail": ""}
+        threading.Thread(target=_request_gacha_unlock, daemon=True).start()
+    else:
+        state["gacha"] = {"eligible": False, "status": None, "detail": ""}
 
 
 def go_idle():
@@ -202,6 +252,7 @@ def go_game_over():
     state["message"] = f"Game Over! Score: {state['score']}"
     state["last_action"] = time.time()
     record_result(cleared=False)
+    maybe_unlock_gacha()
 
 
 def register_judgment(judgment: str, kind: str):
@@ -231,6 +282,7 @@ def finish_stage():
         state["best_score"] = max(state["best_score"], state["score"])
         state["message"] = f"ALL CLEAR! Score: {state['score']}"
         record_result(cleared=True)
+        maybe_unlock_gacha()
     else:
         state["best_stage"] = max(state["best_stage"], state["stage"])
         state["phase"] = "stage_clear"
@@ -460,9 +512,89 @@ def ble_reader():
     asyncio.run(run())
 
 
+# --- ガチャ機BLE接続 (firmware/gacha_lock_ble 用) ---
+# ガチャ機のESP32はBLEで「GachaLock」としてアドバタイズする。ColorMemoryGame(リモコン
+# ブリッジ)とは別デバイス・別接続として、常時つなぎっぱなしにしておく。
+# RXキャラクタリスティックに "UNLOCK" を書き込むと解錠、TXキャラクタリスティックの通知で
+# ESP32側の状態("LOCKED"/"UNLOCKED"/"DISPENSED"等)を受け取れる。
+
+GACHA_BLE_DEVICE_NAME = "GachaLock"
+GACHA_BLE_SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
+GACHA_BLE_RX_CHAR_UUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"  # 書き込み: 解除コマンド
+GACHA_BLE_TX_CHAR_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"  # 通知: 状態
+
+gacha_ble_state_lock = threading.Lock()
+gacha_ble_state = {"client": None, "loop": None}
+
+
+def gacha_ble_reader():
+    """ガチャ機ESP32とのBLE接続を維持する。未発見・切断時は自動で再試行し続ける。"""
+    try:
+        import asyncio
+        from bleak import BleakClient, BleakScanner
+    except ImportError:
+        print("[GACHA-BLE] bleak が無いため無効です (pip install 'bleak<3')")
+        return
+
+    def matches(device, adv):
+        uuids = [u.lower() for u in (adv.service_uuids or [])]
+        if GACHA_BLE_SERVICE_UUID.lower() in uuids:
+            return True
+        return (device.name or adv.local_name) == GACHA_BLE_DEVICE_NAME
+
+    def on_notify(_char, data):
+        text = bytes(data).decode(errors="ignore").strip()
+        if text:
+            print(f"[GACHA-BLE] status: {text}")
+            with lock:
+                if state["gacha"]["status"] in ("pending", "ok"):
+                    state["gacha"]["detail"] = text
+
+    async def run():
+        waiting_logged = False
+        while True:
+            try:
+                device = await BleakScanner.find_device_by_filter(
+                    matches, timeout=5.0)
+                if device is None:
+                    if not waiting_logged:
+                        print(f"[GACHA-BLE] ESP32「{GACHA_BLE_DEVICE_NAME}」を探しています... "
+                              "(電源が入っていれば自動で見つかります)")
+                        waiting_logged = True
+                    await asyncio.sleep(2)
+                    continue
+
+                disconnected = asyncio.Event()
+                loop = asyncio.get_running_loop()
+
+                def on_disconnect(_client):
+                    with gacha_ble_state_lock:
+                        gacha_ble_state["client"] = None
+                    loop.call_soon_threadsafe(disconnected.set)
+
+                async with BleakClient(
+                        device, disconnected_callback=on_disconnect) as client:
+                    print("[GACHA-BLE] 接続しました — ガチャロック解除OKです")
+                    waiting_logged = False
+                    await client.start_notify(GACHA_BLE_TX_CHAR_UUID, on_notify)
+                    with gacha_ble_state_lock:
+                        gacha_ble_state["client"] = client
+                        gacha_ble_state["loop"] = loop
+                    await disconnected.wait()
+                print("[GACHA-BLE] 切断されました — 再接続します")
+            except Exception as e:
+                print(f"[GACHA-BLE] エラー: {e} — 3秒後に再接続します")
+                with gacha_ble_state_lock:
+                    gacha_ble_state["client"] = None
+                await asyncio.sleep(3)
+
+    asyncio.run(run())
+
+
 if __name__ == "__main__":
     # ログをファイルにリダイレクトしても [BLE] メッセージが即座に出るようにする
     sys.stdout.reconfigure(line_buffering=True)
     threading.Thread(target=stage_ticker, daemon=True).start()
     threading.Thread(target=ble_reader, daemon=True).start()
+    threading.Thread(target=gacha_ble_reader, daemon=True).start()
     app.run(host="0.0.0.0", port=8000, debug=False)

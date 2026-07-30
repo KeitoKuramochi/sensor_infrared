@@ -111,6 +111,21 @@ ESP32の電源を入れ直しても自動で再接続します。
 - 判定: ピッタリ(±0.09秒)= **EXCELLENT** / 少しズレ(±0.22秒)= **OK** / それ以上・押しそびれ = ライフ−1
 - ライフは3つ。なくなるとゲームオーバー、5ステージ抜ければ ALL CLEAR
 
+## ガチャロック連携(任意)
+
+友人([MaedaReno/gacha-machine](https://github.com/MaedaReno/gacha-machine))が作った、ESP32+サーボ+赤外線センサーで
+ガチャガチャのロックを解錠する装置と連携できる。ゲーム終了時(Game Over / ALL CLEAR問わず)の
+最終スコアが500点以上なら、`firmware/gacha_lock_ble` を書き込んだガチャ機ESP32にBLEで解錠コマンドを送る。
+
+- ガチャ機側: `firmware/gacha_lock_ble/gacha_lock_ble.ino` を書き込む(サーボ=GPIO26、赤外線センサー=GPIO25)。
+  BLEで「GachaLock」としてアドバタイズし、PCからの解錠コマンドを受けるとサーボが解錠、
+  赤外線センサーがカプセルの落下を検知すると自動で再施錠する
+- PC側: `pc_game/game_server.py` が起動時に自動で「GachaLock」を探して接続する(色記憶ゲームの
+  リモコンブリッジとは別のBLE接続として共存)。閾値は環境変数 `GACHA_UNLOCK_SCORE`(既定500)で変更可能
+- ガチャ機のESP32個体によってはBluetooth/WiFiの無線ハードウェア自体が故障している場合がある。
+  その場合は書き込み自体は成功し起動ログも正常に見えるが、電波が一切飛ばないため気づきにくい。
+  疑わしいときは最小構成のBLE広告テスト・WiFi APテストスケッチで電波が飛んでいるか単体確認するとよい
+
 ## リポジトリ構成
 
 ```
@@ -119,6 +134,7 @@ firmware/
 ├── color_memory_game_bt/     # 旧版: Bluetooth Classic (SPP)版(現行macOSでは接続が不安定)
 ├── color_memory_game_wifi/   # 旧構成: IR受信→WiFiブリッジ(WiFi環境がある場合の代替)
 ├── color_memory_game/        # 旧版: ESP32単体で完結する色記憶ゲーム(要WS2812配線・未解決)
+├── gacha_lock_ble/           # ガチャ機ロック(友人プロジェクト連携)のBLEファームウェア
 ├── oled_i2c_scan/            # OLEDのI2Cピンを特定する診断ツール
 └── presence_light/           # 実験: 人感ライト構想のスケッチ
 pc_game/

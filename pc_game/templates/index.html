@@ -827,6 +827,14 @@ function tickConveyor() {
   rafHandle = requestAnimationFrame(tickConveyor);
 }
 
+function gachaSuffix(gacha) {
+  if (!gacha || !gacha.eligible) return '';
+  if (gacha.status === 'pending') return ' 🎰 ガチャのロック解除中...';
+  if (gacha.status === 'ok') return ' 🎉 ガチャのロックを解除しました!';
+  if (gacha.status === 'error') return ' ⚠️ ガチャ機に接続できませんでした(WiFi「GACHA」に接続してください)';
+  return '';
+}
+
 function render(state) {
   stageEl.textContent = state.stage;
   scoreEl.textContent = state.score;
@@ -894,13 +902,13 @@ function render(state) {
     stopConveyor();
     highlight(null);
     renderLives(0);
-    messageEl.textContent = state.message + ' — ONボタンでもう一度';
+    messageEl.textContent = state.message + ' — ONボタンでもう一度' + gachaSuffix(state.gacha);
   } else if (state.phase === 'all_clear') {
     currentStageKey = null;
     stopConveyor();
     highlight(null);
     renderLives(STARTING_LIVES);
-    messageEl.textContent = state.message + ' — ONボタンでもう一度';
+    messageEl.textContent = state.message + ' — ONボタンでもう一度' + gachaSuffix(state.gacha);
   }
 
   prev = {
