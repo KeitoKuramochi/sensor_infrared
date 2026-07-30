@@ -874,6 +874,18 @@ def gacha_ble_reader():
                         if connect_count[0] > 0:
                             g["reconnects"] += 1
                     connect_count[0] += 1
+
+                    # ★接続直後に必ず現在の状態を問い合わせて同期する。
+                    # ファーム側もonConnectで状態を通知するが、それはこちらが
+                    # start_notify を終える前に飛ぶことがあり取りこぼす。
+                    # プレイ中に切断されると「排出した/施錠した」の通知が届かず、
+                    # PC側だけが排出待ちのまま固まるので、復帰時の同期は必須。
+                    try:
+                        await client.write_gatt_char(
+                            GACHA_BLE_RX_CHAR_UUID, b"STATUS", response=True)
+                    except Exception as e:
+                        print(f"[GACHA-BLE] 状態の問い合わせに失敗: {e}")
+
                     await disconnected.wait()
                 print("[GACHA-BLE] 切断されました — 再接続します")
             except Exception as e:

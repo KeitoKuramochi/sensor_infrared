@@ -1338,6 +1338,14 @@ function renderResult(state) {
       // 解除信号は通ったが、すでにロック済み状態に戻っている
       setSteps({ unlock: 'done', turn: 'done', dispensed: 'done', relocked: 'done' });
       rpFootEl.textContent = 'ONボタンで次のゲームを始められます';
+    } else if (!g.connected) {
+      // 排出待ちの途中でBLEが切れると「出た」の通知が届かない。
+      // 黙って待ち続けると原因が分からないので、切断をはっきり出す。
+      setSteps({ unlock: 'done', turn: 'now' });
+      rpMsgEl.innerHTML = '<b>ロックは解除できています。</b> ガチャを回してね';
+      rpFootEl.innerHTML = '⚠️ ガチャ機との通信が切れました — カプセルが出ていれば、'
+        + '通信が戻り次第そのまま次へ進みます(進まないときは右下の🛠から「待たせを解除」)';
+      rpFootEl.className = 'rp-foot warn';
     } else {
       setSteps({ unlock: 'done', turn: 'now' });
       rpMsgEl.innerHTML = '<b>ロックを解除しました!</b> ガチャを回してね';
