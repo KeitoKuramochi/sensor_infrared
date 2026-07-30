@@ -133,6 +133,8 @@ state = {
     #   connected: ガチャ機とBLE接続できているか
     #   device   : ガチャ機が通知してきた実際の状態。None | "LOCKED" | "UNLOCKED" | "DISPENSED"
     #   awaiting : 解錠したがまだ再施錠されていない(=次の人を待たせる)
+    #   reconnects: 接続が切れて張り直した回数。増え続けるなら置き場所が悪い
+    #   connected_since: 今の接続が始まった時刻(電波品質の目安になる)
     "gacha": {
         "eligible": False,
         "status": None,
@@ -140,6 +142,8 @@ state = {
         "connected": False,
         "device": None,
         "awaiting": False,
+        "reconnects": 0,
+        "connected_since": None,
     },
 }
 
@@ -827,6 +831,8 @@ def gacha_ble_reader():
                 g["awaiting"] = False
                 print("[GACHA] 再施錠を確認しました — 次の人どうぞ")
 
+    connect_count = [0]   # 何回目の接続か(1回目は「再接続」に数えない)
+
     async def run():
         waiting_logged = False
         while True:
@@ -849,6 +855,7 @@ def gacha_ble_reader():
                         gacha_ble_state["client"] = None
                     with lock:
                         state["gacha"]["connected"] = False
+                        state["gacha"]["connected_since"] = None
                     loop.call_soon_threadsafe(disconnected.set)
 
                 async with BleakClient(
@@ -860,7 +867,13 @@ def gacha_ble_reader():
                         gacha_ble_state["client"] = client
                         gacha_ble_state["loop"] = loop
                     with lock:
-                        state["gacha"]["connected"] = True
+                        g = state["gacha"]
+                        g["connected"] = True
+                        g["connected_since"] = time.time()
+                        # 初回は0のまま。以降の接続=張り直しなのでカウントする
+                        if connect_count[0] > 0:
+                            g["reconnects"] += 1
+                    connect_count[0] += 1
                     await disconnected.wait()
                 print("[GACHA-BLE] 切断されました — 再接続します")
             except Exception as e:

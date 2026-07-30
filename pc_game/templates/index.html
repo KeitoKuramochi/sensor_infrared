@@ -887,6 +887,8 @@
 
       <div class="ad-status">
         <div class="ad-row"><span>ガチャ機BLE</span><b id="adConn">—</b></div>
+        <div class="ad-row"><span>接続の長さ</span><b id="adUptime">—</b></div>
+        <div class="ad-row"><span>再接続回数</span><b id="adReconn">—</b></div>
         <div class="ad-row"><span>ロック状態</span><b id="adDevice">—</b></div>
         <div class="ad-row"><span>ゲーム</span><b id="adPhase">—</b></div>
         <div class="ad-row"><span>次の人待たせ</span><b id="adAwaiting">—</b></div>
@@ -1478,6 +1480,8 @@ async function poll() {
 // 運営が手動で介入するためのパネル。合言葉は付けない(手元運用のため)。
 const adResultEl = document.getElementById('adResult');
 const adConnEl = document.getElementById('adConn');
+const adUptimeEl = document.getElementById('adUptime');
+const adReconnEl = document.getElementById('adReconn');
 const adDeviceEl = document.getElementById('adDevice');
 const adPhaseEl = document.getElementById('adPhase');
 const adAwaitingEl = document.getElementById('adAwaiting');
@@ -1489,10 +1493,23 @@ const PHASE_JA = {
 };
 const DEVICE_JA = { LOCKED: '施錠', UNLOCKED: '解錠', DISPENSED: '排出済み' };
 
+function fmtDuration(sec) {
+  if (sec < 60) return `${Math.floor(sec)}秒`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}分${Math.floor(sec % 60)}秒`;
+  return `${Math.floor(sec / 3600)}時間${Math.floor((sec % 3600) / 60)}分`;
+}
+
 function renderAdmin(state) {
   const g = state.gacha || {};
   adConnEl.textContent = g.connected ? '接続中' : '未接続';
   adConnEl.className = g.connected ? 'ok' : 'ng';
+
+  // 接続が長く続いている＝置き場所が良い。再接続が増えるなら電波が届きにくい位置
+  adUptimeEl.textContent = (g.connected && g.connected_since)
+    ? fmtDuration(Date.now() / 1000 - g.connected_since) : '—';
+  const rc = g.reconnects || 0;
+  adReconnEl.textContent = `${rc}回`;
+  adReconnEl.className = rc === 0 ? 'ok' : (rc < 4 ? 'warn' : 'ng');
   adDeviceEl.textContent = DEVICE_JA[g.device] || '不明';
   adDeviceEl.className = g.device === 'UNLOCKED' ? 'warn' : (g.device ? 'ok' : '');
   adPhaseEl.textContent = PHASE_JA[state.phase] || state.phase;
