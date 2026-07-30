@@ -332,12 +332,97 @@
   }
   /* HUDとメッセージは横並びの列に混ざらないよう、それぞれ独立した行にする */
   body.selecting #hud { flex-basis: 100%; justify-content: center; }
-  body.selecting #message { flex-basis: 100%; }
+  body.selecting #message { flex-basis: 100%; text-align: center; }
   body.selecting #targetSelect { width: min(470px, 60vw); }
   /* 画面が低いときは目安の累計点表を落として高さを稼ぐ */
   @media (max-height: 700px) {
     body.selecting .ts-bench { display: none; }
   }
+
+  /* 結果表示中も同様に、レーンを隠して結果パネルとリモコンを横並びにする */
+  body.finished #conveyorWrap,
+  body.finished .side-panel { display: none; }
+  body.finished #layout { gap: 0; }
+  body.finished #center {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 22px;
+  }
+  /* 横並び(row)にすると独立行の要素は左寄せになるので、明示的に中央へ揃える */
+  body.finished #hud,
+  body.finished #message,
+  body.finished #best { flex-basis: 100%; justify-content: center; text-align: center; }
+  body.finished #logo { display: none; }
+  body.finished #resultArt { max-height: 104px; }
+  @media (max-height: 720px) {
+    body.finished #resultArt { display: none; }
+    body.finished #best { display: none; }
+  }
+
+  /* --- 結果画面 --- */
+  #resultPanel {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: min(520px, 92vw);
+    padding: 16px 22px 14px;
+    background: var(--panel);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  #resultPanel.show { display: flex; }
+  .rp-head { font-size: 17px; font-weight: 800; letter-spacing: 0.08em; }
+  .rp-head.win { color: var(--gold); text-shadow: 0 0 18px rgba(255, 214, 10, 0.45); }
+  .rp-head.lose { color: var(--text-2); }
+  .rp-scores { display: flex; align-items: center; justify-content: center; gap: 16px; }
+  .rp-score { display: flex; flex-direction: column; align-items: center; }
+  .rp-score i { font-size: 9.5px; font-style: normal; letter-spacing: 0.16em; color: var(--text-3); }
+  .rp-score b { font-size: 30px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .rp-arrow { font-size: 18px; font-weight: 800; }
+  .rp-arrow.win { color: #4ade80; }
+  .rp-arrow.lose { color: var(--red); }
+  .rp-msg { font-size: 14px; color: var(--text); text-align: center; }
+  .rp-msg b { color: var(--gold); }
+
+  /* ガチャ進行の段階表示。todo=これから / now=進行中 / done=完了 */
+  .rp-steps { display: none; width: 100%; justify-content: space-between; gap: 4px; margin-top: 2px; }
+  .rp-steps.show { display: flex; }
+  .rp-step {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 7px 2px 6px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    opacity: 0.4;
+    transition: opacity 220ms ease, background 220ms ease, border-color 220ms ease;
+  }
+  .rp-ico { font-size: 17px; filter: grayscale(1); transition: filter 220ms ease; }
+  .rp-txt { font-size: 10px; color: var(--text-2); letter-spacing: 0.02em; }
+  .rp-step.done { opacity: 1; }
+  .rp-step.done .rp-ico { filter: none; }
+  .rp-step.now {
+    opacity: 1;
+    background: rgba(86, 215, 255, 0.12);
+    border-color: rgba(86, 215, 255, 0.45);
+    animation: rpPulse 1.1s ease-in-out infinite;
+  }
+  .rp-step.now .rp-ico { filter: none; }
+  @keyframes rpPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(86, 215, 255, 0.35); }
+    50%      { box-shadow: 0 0 14px 3px rgba(86, 215, 255, 0.3); }
+  }
+  .rp-foot { font-size: 12px; color: var(--text-3); text-align: center; min-height: 17px; }
+  .rp-foot.warn { color: #ffb04a; }
 
   #message { font-size: 15.5px; min-height: 22px; color: #c6ccd8; text-align: center; letter-spacing: 0.02em; }
   #best { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
@@ -661,6 +746,25 @@
     <div class="ts-foot">色ボタンをおすとその目標でスタート / Modeで練習 / OFFでもどる</div>
   </div>
 
+  <!-- 結果画面 (phase = game_over / all_clear のときだけ表示) -->
+  <div id="resultPanel">
+    <div class="rp-head" id="rpHead">RESULT</div>
+    <div class="rp-scores">
+      <div class="rp-score"><i>スコア</i><b id="rpScore">0</b></div>
+      <div class="rp-arrow" id="rpVerdict">—</div>
+      <div class="rp-score"><i>目標</i><b id="rpTarget">0</b></div>
+    </div>
+    <div class="rp-msg" id="rpMsg"></div>
+    <!-- ガチャの進行(解除→回す→出た→再施錠)を段階表示する -->
+    <div class="rp-steps" id="rpSteps">
+      <div class="rp-step" data-step="unlock"><span class="rp-ico">🔓</span><span class="rp-txt">ロック解除</span></div>
+      <div class="rp-step" data-step="turn"><span class="rp-ico">🎰</span><span class="rp-txt">ガチャを回す</span></div>
+      <div class="rp-step" data-step="dispensed"><span class="rp-ico">🎉</span><span class="rp-txt">カプセル排出</span></div>
+      <div class="rp-step" data-step="relocked"><span class="rp-ico">🔒</span><span class="rp-txt">再ロック</span></div>
+    </div>
+    <div class="rp-foot" id="rpFoot"></div>
+  </div>
+
   <img id="resultArt" src="" alt="">
 
   <div id="conveyorWrap">
@@ -732,6 +836,14 @@ const targetScoreEl = document.getElementById('targetScore');
 const stageChipEl = document.getElementById('stageChip');
 const lifeChipEl = document.getElementById('lifeChip');
 const practiceChipEl = document.getElementById('practiceChip');
+const resultPanelEl = document.getElementById('resultPanel');
+const rpHeadEl = document.getElementById('rpHead');
+const rpScoreEl = document.getElementById('rpScore');
+const rpTargetEl = document.getElementById('rpTarget');
+const rpVerdictEl = document.getElementById('rpVerdict');
+const rpMsgEl = document.getElementById('rpMsg');
+const rpStepsEl = document.getElementById('rpSteps');
+const rpFootEl = document.getElementById('rpFoot');
 const rankingListEl = document.getElementById('rankingList');
 const rankingEmptyEl = document.getElementById('rankingEmpty');
 
@@ -1051,13 +1163,71 @@ function stopTargetCycle() {
   tsRowEls().forEach(r => r.classList.remove('ts-active'));
 }
 
-// 目標に届いたかどうかを結果画面に出す
-function targetSuffix(state) {
+// --- 結果画面 ---
+// 目標に届いたかを必ずフィードバックし、届いた場合はガチャの進行
+// (解除 → 回す → 排出 → 再ロック)を段階表示して、再ロックを確認できたら次の人へ促す。
+function setSteps(map) {
+  document.querySelectorAll('#rpSteps .rp-step').forEach(el => {
+    el.classList.remove('now', 'done');
+    const s = map[el.dataset.step];
+    if (s) el.classList.add(s);
+  });
+}
+
+function renderResult(state) {
+  const g = state.gacha || {};
   const reached = state.score >= state.target_score;
-  const head = reached
-    ? ` ✅ 目標${state.target_score}点 達成!`
-    : ` ❌ 目標${state.target_score}点 まであと${state.target_score - state.score}点`;
-  return head + gachaSuffix(state.gacha);
+  const short = state.target_score - state.score;
+
+  rpHeadEl.textContent = state.phase === 'all_clear' ? 'ALL CLEAR!' : 'GAME OVER';
+  rpHeadEl.className = 'rp-head ' + (reached ? 'win' : 'lose');
+  rpScoreEl.textContent = state.score;
+  rpTargetEl.textContent = state.target_score;
+  rpVerdictEl.textContent = reached ? '≥' : '<';
+  rpVerdictEl.className = 'rp-arrow ' + (reached ? 'win' : 'lose');
+
+  rpStepsEl.classList.toggle('show', reached);
+  rpFootEl.className = 'rp-foot';
+
+  if (!reached) {
+    rpMsgEl.innerHTML = `目標まで <b>あと${short}点</b>でした`;
+    rpFootEl.textContent = 'ONボタンでもう一度ちょうせん!';
+    return;
+  }
+
+  rpMsgEl.innerHTML = '目標たっせい! <b>ガチャのロックを解除します</b>';
+
+  if (g.status === 'pending') {
+    setSteps({ unlock: 'now' });
+    rpFootEl.textContent = 'ガチャ機に解除信号を送っています...';
+  } else if (g.status === 'error') {
+    setSteps({});
+    rpMsgEl.innerHTML = '目標たっせい! でも…';
+    rpFootEl.textContent = '⚠️ ガチャ機につながりません' + (g.connected ? '' : '(電源とBLEを確認)');
+    rpFootEl.className = 'rp-foot warn';
+  } else if (g.status === 'ok') {
+    if (g.device === 'DISPENSED' && !g.awaiting) {
+      // 排出も再施錠も完了 = 次の人へ
+      setSteps({ unlock: 'done', turn: 'done', dispensed: 'done', relocked: 'done' });
+      rpMsgEl.innerHTML = 'ありがとうございました! <b>次の人どうぞ</b>';
+      rpFootEl.textContent = 'ONボタンで次のゲームを始められます';
+    } else if (g.device === 'DISPENSED') {
+      setSteps({ unlock: 'done', turn: 'done', dispensed: 'done', relocked: 'now' });
+      rpMsgEl.innerHTML = 'カプセルが出ました! <b>ありがとう!</b>';
+      rpFootEl.textContent = 'ロックし直しています...';
+    } else if (!g.awaiting) {
+      // 解除信号は通ったが、すでにロック済み状態に戻っている
+      setSteps({ unlock: 'done', turn: 'done', dispensed: 'done', relocked: 'done' });
+      rpFootEl.textContent = 'ONボタンで次のゲームを始められます';
+    } else {
+      setSteps({ unlock: 'done', turn: 'now' });
+      rpMsgEl.innerHTML = '<b>ロックを解除しました!</b> ガチャを回してね';
+      rpFootEl.textContent = 'カプセルが出るまで次の人は待ってね';
+    }
+  } else {
+    setSteps({});
+    rpFootEl.textContent = '';
+  }
 }
 
 function render(state) {
@@ -1104,7 +1274,10 @@ function render(state) {
   if (showTarget) targetScoreEl.textContent = state.target_score;
 
   const selecting = state.phase === 'target_select';
+  const finished = state.phase === 'game_over' || state.phase === 'all_clear';
   targetSelectEl.classList.toggle('show', selecting);
+  resultPanelEl.classList.toggle('show', finished);
+  document.body.classList.toggle('finished', finished);
   // 目標選択中はレーンを隠してリモコンを画面内に収める(縦に長くなって切れるのを防ぐ)
   document.body.classList.toggle('selecting', selecting);
   if (!selecting) stopTargetCycle();
@@ -1150,18 +1323,17 @@ function render(state) {
     stopConveyor();
     highlight('ON');
     messageEl.textContent = state.message + ' — ONボタンで次へ';
-  } else if (state.phase === 'game_over') {
+  } else if (state.phase === 'game_over' || state.phase === 'all_clear') {
     currentStageKey = null;
     stopConveyor();
-    highlight(null);
-    renderLives(0);
-    messageEl.textContent = state.message + targetSuffix(state) + ' — ONボタンでもう一度';
-  } else if (state.phase === 'all_clear') {
-    currentStageKey = null;
-    stopConveyor();
-    highlight(null);
-    renderLives(STARTING_LIVES);
-    messageEl.textContent = state.message + targetSuffix(state) + ' — ONボタンでもう一度';
+    renderLives(state.phase === 'game_over' ? 0 : STARTING_LIVES);
+    renderResult(state);
+    // サーバーがONを弾く条件(再施錠待ち・解錠コマンド送信中)と一致させて、
+    // 押せないときはボタンを光らせない
+    const g = state.gacha || {};
+    const onBlocked = g.awaiting || g.status === 'pending';
+    highlight(onBlocked ? null : 'ON');
+    messageEl.textContent = '';
   }
 
   prev = {

@@ -127,10 +127,28 @@ state = {
     #   notes: {ビート番号: 色名} を必要な分だけ生成して保持
     #   next_index: 次に判定すべきノーツのビート番号
     "practice": None,
-    # ガチャ解錠の状況。eligible=このゲームは閾値スコアに到達したか。
-    # status: None(対象外) | "pending"(解錠リクエスト送信中) | "ok"(成功) | "error"(失敗)
-    "gacha": {"eligible": False, "status": None, "detail": ""},
+    # ガチャ連携の状況。
+    #   eligible : このゲームが目標点数に到達したか
+    #   status   : 解錠コマンドの送信結果。None(対象外) | "pending" | "ok" | "error"
+    #   connected: ガチャ機とBLE接続できているか
+    #   device   : ガチャ機が通知してきた実際の状態。None | "LOCKED" | "UNLOCKED" | "DISPENSED"
+    #   awaiting : 解錠したがまだ再施錠されていない(=次の人を待たせる)
+    "gacha": {
+        "eligible": False,
+        "status": None,
+        "detail": "",
+        "connected": False,
+        "device": None,
+        "awaiting": False,
+    },
 }
+
+
+def reset_gacha_progress():
+    """ゲーム1回ぶんのガチャ進行(達成判定・解錠結果)をクリアする。
+    connected/device はガチャ機の実状態なので保持する。"""
+    g = state["gacha"]
+    g.update({"eligible": False, "status": None, "detail": "", "awaiting": False})
 
 
 # --- その日のランキング (ranking.json に永続化、gitignore対象) ---
@@ -222,7 +240,7 @@ def start_game(target_score: int):
     state["combo"] = 0
     state["target_score"] = target_score
     state["practice"] = None
-    state["gacha"] = {"eligible": False, "status": None, "detail": ""}
+    reset_gacha_progress()
     start_stage(1)
 
 
@@ -328,29 +346,34 @@ def _request_gacha_unlock():
             ok, detail = False, str(e)
 
     with lock:
-        state["gacha"]["status"] = "ok" if ok else "error"
+        g = state["gacha"]
+        g["status"] = "ok" if ok else "error"
         if detail:
-            state["gacha"]["detail"] = detail
+            g["detail"] = detail
+        # 解錠が通ったら、カプセルが出て再施錠されるまで次の人を待たせる
+        g["awaiting"] = ok
     print(f"[GACHA] 解錠コマンド{'送信成功' if ok else '送信失敗'}: {detail}")
 
 
 def maybe_unlock_gacha():
     """ゲーム終了時に呼ぶ。挑戦者が選んだ目標点数に到達していればガチャの解錠を試みる。
     (呼び出し元がすでに lock を保持している前提。ネットワーク待ちで長引かないよう別スレッドに逃がす)"""
+    reset_gacha_progress()
     if state["score"] >= state["target_score"]:
-        state["gacha"] = {"eligible": True, "status": "pending", "detail": ""}
+        state["gacha"].update({"eligible": True, "status": "pending"})
         threading.Thread(target=_request_gacha_unlock, daemon=True).start()
-    else:
-        state["gacha"] = {"eligible": False, "status": None, "detail": ""}
 
 
 def go_idle():
+    """OFFボタンで待機状態へ。ガチャが詰まって再施錠されない等で進めなくなったときの
+    運営側の手動リセットも兼ねるので、awaiting(次の人を待たせるフラグ)も解除する。"""
     state["phase"] = "idle"
     state["stage"] = 0
     state["pattern"] = []
     state["next_active_index"] = None
     state["message"] = ""
     state["practice"] = None
+    state["gacha"]["awaiting"] = False
     state["last_action"] = time.time()
 
 
@@ -463,6 +486,12 @@ def handle_button(name: str):
             return
 
         if name == "ON":
+            # ガチャを解錠したまま次の人に進ませない。カプセルが出て再施錠されるまで待つ
+            # (ガチャ機がBLEで "LOCKED" を通知してきた時点で awaiting が解除される)。
+            # 解錠コマンドの送信中(pending)も、awaiting が立つ前に始められてしまうので弾く。
+            # 詰まって進めない場合は OFF で手動リセットできる。
+            if state["gacha"]["awaiting"] or state["gacha"]["status"] == "pending":
+                return
             # プレイ前に必ず目標点数を選ばせる
             if state["phase"] in ("idle", "game_over", "all_clear", "practice"):
                 go_target_select()
@@ -718,12 +747,21 @@ def gacha_ble_reader():
         return GACHA_BLE_SERVICE_UUID.lower() in uuids
 
     def on_notify(_char, data):
-        text = bytes(data).decode(errors="ignore").strip()
-        if text:
-            print(f"[GACHA-BLE] status: {text}")
-            with lock:
-                if state["gacha"]["status"] in ("pending", "ok"):
-                    state["gacha"]["detail"] = text
+        """ガチャ機から届く状態通知を反映する。
+        ファーム側は施錠/解錠/カプセル検知のたびに "LOCKED"/"UNLOCKED"/"DISPENSED" を送る。
+        これを追いかけることで、PC側が実際のロック状態を把握しながら次の人へ進める。"""
+        text = bytes(data).decode(errors="ignore").strip().upper()
+        if not text:
+            return
+        print(f"[GACHA-BLE] status: {text}")
+        with lock:
+            g = state["gacha"]
+            if text in ("LOCKED", "UNLOCKED", "DISPENSED"):
+                g["device"] = text
+            if text == "LOCKED" and g["awaiting"]:
+                # カプセルが出て再施錠された = 次の人が始められる
+                g["awaiting"] = False
+                print("[GACHA] 再施錠を確認しました — 次の人どうぞ")
 
     async def run():
         waiting_logged = False
@@ -745,6 +783,8 @@ def gacha_ble_reader():
                 def on_disconnect(_client):
                     with gacha_ble_state_lock:
                         gacha_ble_state["client"] = None
+                    with lock:
+                        state["gacha"]["connected"] = False
                     loop.call_soon_threadsafe(disconnected.set)
 
                 async with BleakClient(
@@ -755,12 +795,16 @@ def gacha_ble_reader():
                     with gacha_ble_state_lock:
                         gacha_ble_state["client"] = client
                         gacha_ble_state["loop"] = loop
+                    with lock:
+                        state["gacha"]["connected"] = True
                     await disconnected.wait()
                 print("[GACHA-BLE] 切断されました — 再接続します")
             except Exception as e:
                 print(f"[GACHA-BLE] エラー: {e} — 3秒後に再接続します")
                 with gacha_ble_state_lock:
                     gacha_ble_state["client"] = None
+                with lock:
+                    state["gacha"]["connected"] = False
                 await asyncio.sleep(3)
 
     asyncio.run(run())
