@@ -39,5 +39,9 @@ __pycache__/
 # 生成AI画像の元データ(加工済みを pc_game/static/img/ にコミット済み)
 /画像/
 
+# ガチャ機ディスプレイ用の画像を変換した自動生成ヘッダ(約1.1MB)。
+# 元画像(src_*.png)から make_images.py で再生成できるのでコミットしない。
+/firmware/gacha_lock_ble/images.h
+
 # オープンキャンパス向けページは別リポジトリ(独立git管理)なので追跡しない
 /opencampus/

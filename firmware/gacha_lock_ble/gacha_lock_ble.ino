@@ -39,6 +39,16 @@
 #include <ESP32Servo.h>
 #include <NimBLEDevice.h>
 
+// ---------------- 表示画像 (任意) ----------------
+// PROMPTS.md を参考にAIで画像を作り、make_images.py を実行すると images.h が生成される。
+// 画像がある場合は全画面イラストで表示し、無い場合は従来の図形(○/⊘)描画になる。
+#if defined(__has_include)
+#  if __has_include("images.h")
+#    include "images.h"
+#    define HAS_IMAGES 1
+#  endif
+#endif
+
 // ---------------- ピン割り当て (実機確認済み) ----------------
 #define PIN_SERVO   26    // サーボ信号
 #define PIN_IR      25    // 赤外線センサー D0 (★3.3Vで駆動すること)
@@ -82,9 +92,13 @@ volatile bool pcConnected = false;
 volatile bool bleUnlockReq = false;
 
 // ---------------- 状態 ----------------
-enum State { ST_LOCKED, ST_UNLOCKED };
+// ST_THANKS: カプセルを検知して再施錠した直後、「ありがとう」を数秒見せている状態。
+// (サーボはこの時点で既に施錠済みなので、表示だけの猶予時間)
+enum State { ST_LOCKED, ST_UNLOCKED, ST_THANKS };
 State state = ST_LOCKED;
 bool  armed = false;    // 解錠後、センサーがクリアになってから検知を有効化するフラグ
+uint32_t thanksSince = 0;
+const uint32_t THANKS_MS = 3000;   // 「ありがとう」を表示する時間
 
 // ---------------- BLE通知 ----------------
 void notifyStatus(const char* s) {
@@ -120,7 +134,12 @@ class RxCallbacks : public NimBLECharacteristicCallbacks {
 };
 
 // ---------------- 画面描画 ----------------
-void drawReady() {                 // 引ける = 緑の ○
+// images.h があれば全画面イラスト、無ければ従来の図形描画にフォールバックする。
+
+void drawReady() {                 // 引ける
+#ifdef HAS_IMG_UNLOCKED
+  gfx->draw16bitRGBBitmap(0, 0, (uint16_t *)IMG_UNLOCKED, IMG_W, IMG_H);
+#else
   gfx->fillScreen(C_BLACK);
   gfx->fillCircle(CX, CY, R,    C_GREEN);
   gfx->fillCircle(CX, CY, R-16, C_BLACK);
@@ -128,9 +147,13 @@ void drawReady() {                 // 引ける = 緑の ○
   gfx->setTextColor(C_GREEN);
   gfx->setCursor(CX - 45, 130);
   gfx->print("READY");
+#endif
 }
 
-void drawLocked() {                // 引けない = 赤の ⊘
+void drawLocked() {                // 引けない
+#ifdef HAS_IMG_LOCKED
+  gfx->draw16bitRGBBitmap(0, 0, (uint16_t *)IMG_LOCKED, IMG_W, IMG_H);
+#else
   gfx->fillScreen(C_BLACK);
   gfx->fillCircle(CX, CY, R,    C_RED);
   gfx->fillCircle(CX, CY, R-16, C_BLACK);
@@ -140,6 +163,19 @@ void drawLocked() {                // 引けない = 赤の ⊘
   gfx->setTextColor(C_RED);
   gfx->setCursor(CX - 54, 130);
   gfx->print("LOCKED");
+#endif
+}
+
+void drawThanks() {                // カプセルが出た直後のお礼
+#ifdef HAS_IMG_THANKS
+  gfx->draw16bitRGBBitmap(0, 0, (uint16_t *)IMG_THANKS, IMG_W, IMG_H);
+#else
+  gfx->fillScreen(C_BLACK);
+  gfx->setTextSize(4);
+  gfx->setTextColor(C_WHITE);
+  gfx->setCursor(CX - 130, CY - 16);
+  gfx->print("THANK YOU!");
+#endif
 }
 
 // ---------------- センサー読み取り ----------------
@@ -165,6 +201,17 @@ void unlockNow() {
   armed = false;                   // まだ検知は有効化しない(下でクリア確認後に有効化)
   Serial.println("[STATE] UNLOCKED (待機: カプセル落下)");
   notifyStatus("UNLOCKED");
+}
+
+// カプセル検知時。2個目が出ないよう先にサーボを施錠し、お礼画面を数秒見せる。
+void thanksThenLock() {
+  lockServo.write(ANGLE_LOCK);
+  armed = false;
+  drawThanks();
+  state = ST_THANKS;
+  thanksSince = millis();
+  Serial.println("[STATE] THANKS (施錠済み、お礼を表示中)");
+  notifyStatus("DISPENSED");
 }
 
 // ---------------- 解除トリガー ----------------
@@ -241,6 +288,12 @@ void loop() {
       delay(300);                   // ボタン連打・チャタリング対策
     }
 
+  } else if (state == ST_THANKS) {
+    // お礼を数秒見せたらロック中の表示に戻す(サーボは既に施錠済み)
+    if (millis() - thanksSince > THANKS_MS) {
+      lockNow();
+    }
+
   } else {  // ST_UNLOCKED
     // まずセンサーが「クリア(何もない)」になるまで待ってから検知を有効化する。
     // (解錠した瞬間に機構などがセンサー前にあっても誤検知しないため)
@@ -253,8 +306,7 @@ void loop() {
       // 有効化後、物体を検知したらカプセルが落ちたとみなして再施錠
       if (irDetected()) {
         Serial.println("[IR] カプセル検知! -> 再施錠");
-        notifyStatus("DISPENSED");
-        lockNow();
+        thanksThenLock();
         delay(300);
       }
     }
