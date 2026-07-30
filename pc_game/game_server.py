@@ -208,8 +208,11 @@ def _request_gacha_unlock():
         ok, detail = False, "ガチャ機(GachaLock)にBLE接続していません"
     else:
         async def do_write():
+            # ファーム側は WRITE(応答あり)で定義しているので response=True で送る。
+            # (response=False だと Write Without Response 扱いになり、WRITE_NR 属性を
+            #  持たないキャラクタリスティックでは破棄されて解錠されない。実機で確認済み)
             await client.write_gatt_char(
-                GACHA_BLE_RX_CHAR_UUID, b"UNLOCK", response=False)
+                GACHA_BLE_RX_CHAR_UUID, b"UNLOCK", response=True)
 
         try:
             future = asyncio.run_coroutine_threadsafe(do_write(), loop)
@@ -539,10 +542,12 @@ def gacha_ble_reader():
         return
 
     def matches(device, adv):
-        uuids = [u.lower() for u in (adv.service_uuids or [])]
-        if GACHA_BLE_SERVICE_UUID.lower() in uuids:
+        # ファーム側は名前を広告本体に、サービスUUIDをスキャン応答に入れている
+        # (電波が弱くても見つかるように)。そのため名前での判定を主にする。
+        if (device.name or adv.local_name) == GACHA_BLE_DEVICE_NAME:
             return True
-        return (device.name or adv.local_name) == GACHA_BLE_DEVICE_NAME
+        uuids = [u.lower() for u in (adv.service_uuids or [])]
+        return GACHA_BLE_SERVICE_UUID.lower() in uuids
 
     def on_notify(_char, data):
         text = bytes(data).decode(errors="ignore").strip()

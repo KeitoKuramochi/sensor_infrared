@@ -201,6 +201,7 @@ void setup() {
   gfx->fillScreen(C_BLACK);
 
   NimBLEDevice::init(BLE_DEVICE_NAME);
+  NimBLEDevice::setPower(9);  // 送信出力を最大に(電波が弱い環境でも届きやすくする)
   NimBLEServer* server = NimBLEDevice::createServer();
   server->setCallbacks(new ServerCallbacks());
 
@@ -211,15 +212,17 @@ void setup() {
       TX_CHAR_UUID, NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
   service->start();
 
-  // 広告パケット(31バイト)に128bit UUID(18B)と名前(17B)は同居できないため、
-  // 広告にはUUIDのみ、名前はスキャン応答に分ける(color_memory_game_ble と同じ対策)
+  // ★電波が弱い環境でも見つけてもらえるよう、名前を「広告本体」に直接入れる。
+  // 128bit UUID(18B)と名前(11B)は31バイト枠に同居できないため、UUIDはスキャン応答に回す。
+  // (逆の構成=UUIDを広告・名前をスキャン応答にすると、名前の取得に往復通信が必要になり、
+  //  電波が弱いとデバイスとして全く見つけられなくなる。実機で -93dBm の環境下で確認済み)
   NimBLEAdvertising* adv = NimBLEDevice::getAdvertising();
   NimBLEAdvertisementData advData;
   advData.setFlags(BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP);
-  advData.setCompleteServices(NimBLEUUID(SERVICE_UUID));
+  advData.setName(BLE_DEVICE_NAME);
   adv->setAdvertisementData(advData);
   NimBLEAdvertisementData scanData;
-  scanData.setName(BLE_DEVICE_NAME);
+  scanData.setCompleteServices(NimBLEUUID(SERVICE_UUID));
   adv->setScanResponseData(scanData);
   bool advOk = adv->start();
   Serial.printf("BLE advertising as: %s (start=%s)\n", BLE_DEVICE_NAME,
