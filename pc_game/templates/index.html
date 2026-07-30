@@ -245,6 +245,67 @@
   .hud-value .hud-dim { font-size: 12px; font-weight: 600; color: var(--text-3); }
   #lives { line-height: 1.2; }
 
+  /* --- 目標点数の選択画面 --- */
+  #targetSelect {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: min(560px, 92vw);
+    padding: 20px 22px 16px;
+    background: var(--panel);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  #targetSelect.show { display: flex; }
+  .ts-title { font-size: 20px; font-weight: 800; letter-spacing: 0.02em; }
+  .ts-sub { font-size: 12.5px; color: var(--text-2); margin-top: -4px; }
+  .ts-sub b { color: var(--gold); }
+  .ts-list { display: flex; flex-direction: column; gap: 6px; width: 100%; margin-top: 4px; }
+  .ts-row {
+    display: grid;
+    grid-template-columns: 18px 84px 92px 1fr;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+  }
+  .ts-dot { width: 15px; height: 15px; border-radius: 50%; }
+  .ts-score { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .ts-score small { font-size: 11px; font-weight: 600; color: var(--text-3); margin-left: 2px; }
+  .ts-label { font-size: 13.5px; font-weight: 700; color: var(--cyan); }
+  .ts-hint { font-size: 11.5px; color: var(--text-3); text-align: right; }
+  .ts-bench {
+    width: 100%;
+    margin-top: 6px;
+    padding: 8px 10px;
+    background: rgba(0, 0, 0, 0.22);
+    border-radius: 10px;
+  }
+  .ts-bench-title {
+    display: block;
+    font-size: 9.5px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    color: var(--text-3);
+    text-align: center;
+    margin-bottom: 5px;
+  }
+  .ts-bench-row { display: flex; justify-content: space-between; gap: 4px; }
+  .ts-bench-cell { display: flex; flex-direction: column; align-items: center; gap: 1px; flex: 1; }
+  .ts-bench-cell i { font-size: 9px; font-style: normal; color: var(--text-3); }
+  .ts-bench-cell b { font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text-2); }
+  .ts-foot { font-size: 11.5px; color: var(--text-3); text-align: center; }
+  @media (max-width: 560px) {
+    .ts-row { grid-template-columns: 16px 70px 1fr; }
+    .ts-hint { display: none; }
+  }
+
   #message { font-size: 15.5px; min-height: 22px; color: #c6ccd8; text-align: center; letter-spacing: 0.02em; }
   #best { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 
@@ -492,7 +553,7 @@
     <div class="panel-title">🎮 あそびかた</div>
     <div class="step">
       <span class="step-icon"><span class="mini-btn on">ON</span></span>
-      <span class="step-text"><b>ON</b> でスタート!</span>
+      <span class="step-text"><b>ON</b> → <b>目標点数</b>をえらんでスタート!</span>
     </div>
     <div class="step">
       <span class="step-icon"><span class="mini-note"></span><span class="mini-arrow">▶</span><span class="mini-ring"></span></span>
@@ -509,14 +570,18 @@
     </div>
     <div class="step">
       <span class="step-icon"><span class="mini-btn mode">Mode</span><span class="mini-btn off">OFF</span></span>
-      <span class="step-text"><b>Mode</b> 練習 / <b>OFF</b> 中断</span>
+      <span class="step-text"><b>Mode</b> 練習(エンドレス) / <b>OFF</b> 中断</span>
+    </div>
+    <div class="step">
+      <span class="step-icon" style="font-size:20px">🎰</span>
+      <span class="step-text">えらんだ<b>目標点数</b>に届いたら<b>ガチャのロックが解除</b>されるよ</span>
     </div>
   </aside>
 
   <div id="center">
   {% if art.logo %}<img id="logo" src="{{ art.logo }}" alt="Color Memory Game">{% else %}<h1>Color Memory Game</h1>{% endif %}
   <div id="hud">
-    <div class="hud-chip">
+    <div class="hud-chip" id="stageChip">
       <span class="hud-label">STAGE</span>
       <span class="hud-value"><b id="stage">0</b><span class="hud-dim">/{{ total_stages }}</span></span>
     </div>
@@ -524,10 +589,43 @@
       <span class="hud-label">SCORE</span>
       <span class="hud-value" id="score">0</span>
     </div>
-    <div class="hud-chip">
+    <div class="hud-chip" id="lifeChip">
       <span class="hud-label">LIFE</span>
       <span class="hud-value" id="lives"></span>
     </div>
+    <div class="hud-chip" id="practiceChip">
+      <span class="hud-label">MODE</span>
+      <span class="hud-value" style="font-size:15px">練習</span>
+    </div>
+    <div class="hud-chip" id="targetChip">
+      <span class="hud-label">TARGET</span>
+      <span class="hud-value" id="targetScore">—</span>
+    </div>
+  </div>
+
+  <!-- 目標点数の選択画面 (phase = target_select のときだけ表示) -->
+  <div id="targetSelect">
+    <div class="ts-title">目標点数をえらんでね</div>
+    <div class="ts-sub">この点数以上でおわると <b>ガチャのロックが解除</b>されます</div>
+    <div class="ts-list">
+      {% for p in target_presets %}
+      <div class="ts-row" data-target="{{ p.score }}">
+        <span class="ts-dot" style="background:{{ p.hex }};box-shadow:0 0 12px {{ p.hex }}99"></span>
+        <span class="ts-score">{{ p.score }}<small>点</small></span>
+        <span class="ts-label">{{ p.label }}</span>
+        <span class="ts-hint">{{ p.hint }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="ts-bench">
+      <span class="ts-bench-title">ぜんぶEXCELLENTで取ったときの累計点</span>
+      <div class="ts-bench-row">
+        {% for b in stage_benchmarks %}
+        <span class="ts-bench-cell"><i>ステージ{{ loop.index }}</i><b>{{ b }}</b></span>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="ts-foot">色ボタンをおすとその目標でスタート / Modeで練習 / OFFでもどる</div>
   </div>
 
   <img id="resultArt" src="" alt="">
@@ -594,6 +692,12 @@ const COLOR_HEX = {
 };
 const ART = {{ art | tojson }};
 const resultArtEl = document.getElementById('resultArt');
+const targetSelectEl = document.getElementById('targetSelect');
+const targetChipEl = document.getElementById('targetChip');
+const targetScoreEl = document.getElementById('targetScore');
+const stageChipEl = document.getElementById('stageChip');
+const lifeChipEl = document.getElementById('lifeChip');
+const practiceChipEl = document.getElementById('practiceChip');
 const rankingListEl = document.getElementById('rankingList');
 const rankingEmptyEl = document.getElementById('rankingEmpty');
 
@@ -632,7 +736,7 @@ let rafHandle = null;
 let currentStageKey = null;  // 今コンベアを構築済みのステージ番号
 let liveNextActiveIndex = BEATS_PER_STAGE;
 let prev = {
-  phase: null, stage: 0, lives: STARTING_LIVES, judgment_seq: 0, practice_last: null,
+  phase: null, stage: 0, lives: STARTING_LIVES, judgment_seq: 0,
 };
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -782,26 +886,30 @@ function stopConveyor() {
   currentStageKey = null;
 }
 
+function makeNoteEl(colorName) {
+  const isColor = colorName !== null;
+  const d = document.createElement('div');
+  d.className = isColor ? 'note' : 'note note-empty';
+  if (isColor) {
+    const hex = COLOR_HEX[colorName];
+    d.style.background = hex;
+    d.style.boxShadow = `0 0 16px ${hex}88, 0 3px 8px rgba(0,0,0,0.45)`;
+  }
+  trackEl.appendChild(d);
+  return d;
+}
+
 function buildConveyor(state) {
   slots.forEach(s => s.el.remove());
   slots = [];
   const startPerf = syncedStartPerf(state.stage_start_time);
   scheduleCountIn(startPerf);
   state.pattern.forEach((colorName, i) => {
-    const isColor = colorName !== null;
-    const d = document.createElement('div');
-    d.className = isColor ? 'note' : 'note note-empty';
-    if (isColor) {
-      const hex = COLOR_HEX[colorName];
-      d.style.background = hex;
-      d.style.boxShadow = `0 0 16px ${hex}88, 0 3px 8px rgba(0,0,0,0.45)`;
-    }
-    trackEl.appendChild(d);
     slots.push({
       idx: i,
-      type: isColor ? 'color' : 'empty',
+      type: colorName !== null ? 'color' : 'empty',
       arrival: startPerf + i * BEAT_INTERVAL_MS,
-      el: d,
+      el: makeNoteEl(colorName),
       ticked: false,
     });
   });
@@ -809,8 +917,41 @@ function buildConveyor(state) {
   tickConveyor();
 }
 
+// --- 練習モード(エンドレス)のコンベア ---
+// ステージ制と違い終わりが無いので、作り直すのではなく「まだ出していないノーツを足し、
+// 流れ切ったものを消す」方式にする。ビート番号は絶対値なので、サーバーの判定と一致する。
+let practiceStartPerf = null;
+const spawnedBeats = new Set();
+
+function resetPracticeConveyor() {
+  practiceStartPerf = null;
+  spawnedBeats.clear();
+}
+
+function syncPracticeConveyor(practice) {
+  if (!practice) return;
+  if (practiceStartPerf === null) {
+    practiceStartPerf = syncedStartPerf(practice.start_time);
+    scheduleCountIn(practiceStartPerf);
+    if (rafHandle) cancelAnimationFrame(rafHandle);
+    tickConveyor();
+  }
+  practice.notes.forEach(({ beat, color }) => {
+    if (spawnedBeats.has(beat)) return;
+    spawnedBeats.add(beat);
+    slots.push({
+      idx: beat,
+      type: 'color',
+      arrival: practiceStartPerf + beat * BEAT_INTERVAL_MS,
+      el: makeNoteEl(color),
+      ticked: false,
+    });
+  });
+}
+
 function tickConveyor() {
   const now = performance.now();
+  let expired = false;
   slots.forEach((slot) => {
     const x = ZONE_X + (slot.arrival - now) * SCROLL_SPEED;
     slot.el.style.transform = `translateX(${x}px)`;
@@ -823,16 +964,32 @@ function tickConveyor() {
     } else if (x < -70) {
       slot.el.classList.add('cleared');
     }
+    // 十分に流れ切ったノーツは片付ける(エンドレスの練習モードで溜め続けないため)
+    if (x < -220) { slot.expired = true; expired = true; }
   });
+  if (expired) {
+    slots.filter(s => s.expired).forEach(s => s.el.remove());
+    slots = slots.filter(s => !s.expired);
+  }
   rafHandle = requestAnimationFrame(tickConveyor);
 }
 
 function gachaSuffix(gacha) {
-  if (!gacha || !gacha.eligible) return '';
+  if (!gacha) return '';
+  if (!gacha.eligible) return '';
   if (gacha.status === 'pending') return ' 🎰 ガチャのロック解除中...';
   if (gacha.status === 'ok') return ' 🎉 ガチャのロックを解除しました!';
-  if (gacha.status === 'error') return ' ⚠️ ガチャ機に接続できませんでした(WiFi「GACHA」に接続してください)';
+  if (gacha.status === 'error') return ' ⚠️ ガチャ機につながりませんでした(ESP32の電源とBLEを確認)';
   return '';
+}
+
+// 目標に届いたかどうかを結果画面に出す
+function targetSuffix(state) {
+  const reached = state.score >= state.target_score;
+  const head = reached
+    ? ` ✅ 目標${state.target_score}点 達成!`
+    : ` ❌ 目標${state.target_score}点 まであと${state.target_score - state.score}点`;
+  return head + gachaSuffix(state.gacha);
 }
 
 function render(state) {
@@ -851,7 +1008,12 @@ function render(state) {
   comboEl.classList.toggle('show', comboOn);
   if (comboOn) comboEl.textContent = `${state.combo} COMBO`;
 
-  liveNextActiveIndex = (state.next_active_index === null) ? BEATS_PER_STAGE : state.next_active_index;
+  // 練習モードは絶対ビート番号で進むので、判定済みの基準もそちらを使う
+  if (state.phase === 'practice') {
+    liveNextActiveIndex = state.practice ? state.practice.next_index : 0;
+  } else {
+    liveNextActiveIndex = (state.next_active_index === null) ? BEATS_PER_STAGE : state.next_active_index;
+  }
 
   // --- 効果音・演出トリガー (直前のstateとの差分で判定) ---
   if (state.judgment_seq > prev.judgment_seq) {
@@ -863,7 +1025,18 @@ function render(state) {
   if (state.phase === 'all_clear' && prev.phase !== 'all_clear') playAllClear();
   if (state.phase === 'stage_clear' && prev.phase === 'playing') playStageClear();
   if (state.phase === 'playing' && prev.phase !== 'playing' && prev.phase !== null && state.stage === 1) playStart();
-  if (state.phase === 'practice' && state.practice_last && state.practice_last !== prev.practice_last) playDoon();
+  // HUDのチップは場面によって出し分ける。
+  // 練習モードは終わりが無くライフも減らないので、STAGE/LIFE/TARGET は隠して「練習」だけ出す。
+  const practicing = state.phase === 'practice';
+  const showTarget = ['playing', 'stage_clear', 'game_over', 'all_clear'].includes(state.phase);
+  targetChipEl.style.display = showTarget ? '' : 'none';
+  stageChipEl.style.display = practicing ? 'none' : '';
+  lifeChipEl.style.display = practicing ? 'none' : '';
+  practiceChipEl.style.display = practicing ? '' : 'none';
+  if (showTarget) targetScoreEl.textContent = state.target_score;
+
+  targetSelectEl.classList.toggle('show', state.phase === 'target_select');
+  if (state.phase !== 'practice') resetPracticeConveyor();
 
   if (state.phase === 'idle') {
     currentStageKey = null;
@@ -871,12 +1044,20 @@ function render(state) {
     renderLives(STARTING_LIVES);
     highlight('ON');
     messageEl.textContent = 'ONボタンでスタート(Modeで練習モード)';
-  } else if (state.phase === 'practice') {
+  } else if (state.phase === 'target_select') {
     currentStageKey = null;
     stopConveyor();
     renderLives(STARTING_LIVES);
-    highlight(state.practice_last);
-    messageEl.textContent = state.message || '練習モード: 好きな色ボタンを押してみよう(OFFで戻る)';
+    highlight(null);
+    messageEl.textContent = '目標点数を色ボタンでえらんでね';
+  } else if (state.phase === 'practice') {
+    currentStageKey = null;
+    renderLives(STARTING_LIVES);
+    highlight(state.practice && state.practice.notes.length
+      ? (state.practice.notes.find(n => n.beat === state.practice.next_index) || {}).color || null
+      : null);
+    syncPracticeConveyor(state.practice);
+    messageEl.textContent = '練習モード(エンドレス) — 流れてくる色を判定ラインで押そう / OFFで終了';
   } else if (state.phase === 'playing') {
     renderLives(state.lives);
     const remaining = state.pattern.filter((c, i) => c !== null && i >= liveNextActiveIndex).length;
@@ -902,13 +1083,13 @@ function render(state) {
     stopConveyor();
     highlight(null);
     renderLives(0);
-    messageEl.textContent = state.message + ' — ONボタンでもう一度' + gachaSuffix(state.gacha);
+    messageEl.textContent = state.message + targetSuffix(state) + ' — ONボタンでもう一度';
   } else if (state.phase === 'all_clear') {
     currentStageKey = null;
     stopConveyor();
     highlight(null);
     renderLives(STARTING_LIVES);
-    messageEl.textContent = state.message + ' — ONボタンでもう一度' + gachaSuffix(state.gacha);
+    messageEl.textContent = state.message + targetSuffix(state) + ' — ONボタンでもう一度';
   }
 
   prev = {
@@ -916,7 +1097,6 @@ function render(state) {
     stage: state.stage,
     lives: state.lives,
     judgment_seq: state.judgment_seq,
-    practice_last: state.practice_last,
   };
 }
 

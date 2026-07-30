@@ -74,16 +74,38 @@ EXCELLENT_COMBO_BONUS = 3
 OK_SCORE = 15
 OK_COMBO_BONUS = 1
 
+# --- 練習モード (エンドレス) ---
+# 一定間隔でノーツが流れ続けるだけのモード。ライフは減らず、ゲームオーバーにもならない。
+# ステージ制と違い「絶対ビート番号」で管理し、必要になった分だけ遅延生成していく。
+PRACTICE_NOTE_EVERY = 3      # 何拍ごとにノーツを出すか
+PRACTICE_LOOKAHEAD_BEATS = 24  # 先読みして送るビート数(画面外から流入させるのに十分な量)
+
+# --- 目標点数のプリセット ---
+# 挑戦者がリモコンの色ボタンで選ぶ。到達したらガチャのロックを解除する。
+# 目安は「各ステージを全部EXCELLENTで抜けたときの累計点」から算出:
+#   ステージ1=69 / 2=243 / 3=594 / 4=1230 / 全クリア=2295
+TARGET_PRESETS = [
+    {"key": "Red", "score": 100, "label": "かんたん", "hint": "ステージ2くらい"},
+    {"key": "Green", "score": 250, "label": "ふつう", "hint": "ステージ3くらい"},
+    {"key": "Blue1", "score": 500, "label": "むずかしい", "hint": "ステージ3を完走"},
+    {"key": "Orange", "score": 1000, "label": "げきむず", "hint": "ステージ4を完走"},
+    {"key": "Lime", "score": 2000, "label": "神", "hint": "ほぼ完璧"},
+]
+# 各ステージ終了時の累計点の目安(全部EXCELLENT時)。画面に出して目標選びの参考にする。
+STAGE_BENCHMARKS = [69, 243, 594, 1230, 2295]
+DEFAULT_TARGET_SCORE = 500
+
 # --- ガチャロック解除 (友人(MaedaReno)制作の gacha-machine プロジェクトとの連携) ---
 # ガチャ機側のESP32には firmware/gacha_lock_ble を書き込む。BLEで「GachaLock」として
 # アドバタイズし、コマンド用キャラクタリスティックに "UNLOCK" を書き込むとサーボ錠を解錠する。
 # WiFiの繋ぎ変えが不要で、色記憶ゲーム側のBLE接続(ColorMemoryGame)とも共存できる。
-GACHA_UNLOCK_SCORE = int(os.environ.get("GACHA_UNLOCK_SCORE", "500"))
+# 解除に必要な点数は挑戦者がプレイ開始時に選ぶ (TARGET_PRESETS)。
 GACHA_TIMEOUT_SEC = 5
 
 lock = threading.Lock()
 state = {
-    "phase": "idle",  # idle | practice | playing | stage_clear | game_over | all_clear
+    # idle | target_select | practice | playing | stage_clear | game_over | all_clear
+    "phase": "idle",
     "stage": 0,
     "pattern": [],            # 16要素、Noneまたは色名
     "beat_interval": BEAT_INTERVAL_SEC,
@@ -96,9 +118,15 @@ state = {
     "best_score": 0,
     "judgment_seq": 0,        # 判定が出るたびに増える通し番号(クライアントの検知用)
     "last_judgment": "",      # "EXCELLENT" | "OK" | "早すぎ!" | "遅すぎ!" | "MISS"
-    "practice_last": None,    # 練習モード中に最後に押された色
     "message": "",
     "last_action": time.time(),
+    # 挑戦者が選んだ目標点数。この点数以上でゲームが終わるとガチャが解錠される。
+    "target_score": DEFAULT_TARGET_SCORE,
+    # 練習モード(エンドレス)用。絶対ビート番号で管理する。
+    #   start_time: ビート0が判定ゾーンに到着する時刻
+    #   notes: {ビート番号: 色名} を必要な分だけ生成して保持
+    #   next_index: 次に判定すべきノーツのビート番号
+    "practice": None,
     # ガチャ解錠の状況。eligible=このゲームは閾値スコアに到達したか。
     # status: None(対象外) | "pending"(解錠リクエスト送信中) | "ok"(成功) | "error"(失敗)
     "gacha": {"eligible": False, "status": None, "detail": ""},
@@ -188,12 +216,83 @@ def start_stage(stage_num: int):
     state["last_action"] = time.time()
 
 
-def start_game():
+def start_game(target_score: int):
     state["lives"] = STARTING_LIVES
     state["score"] = 0
     state["combo"] = 0
+    state["target_score"] = target_score
+    state["practice"] = None
     state["gacha"] = {"eligible": False, "status": None, "detail": ""}
     start_stage(1)
+
+
+def go_target_select():
+    """プレイ開始前に、挑戦者が目標点数を選ぶ画面へ。"""
+    state["phase"] = "target_select"
+    state["stage"] = 0
+    state["pattern"] = []
+    state["next_active_index"] = None
+    state["practice"] = None
+    state["message"] = ""
+    state["last_action"] = time.time()
+
+
+# --- 練習モード (エンドレス) ---
+
+def practice_color_for(beat_index: int, notes: dict):
+    """直前のノーツと違う色をランダムに選ぶ(同じ色が連続しないように)。"""
+    prev_index = beat_index - PRACTICE_NOTE_EVERY
+    prev_color = notes.get(prev_index)
+    choices = [c for c in COLOR_NAMES if c != prev_color]
+    return random.choice(choices)
+
+
+def start_practice():
+    state["phase"] = "practice"
+    state["stage"] = 0
+    state["pattern"] = []
+    state["next_active_index"] = None
+    state["lives"] = STARTING_LIVES
+    state["score"] = 0
+    state["combo"] = 0
+    state["practice"] = {
+        "start_time": time.time() + INTRO_DELAY_SEC,
+        "notes": {},
+        "next_index": 0,
+    }
+    extend_practice_notes()
+    state["message"] = ""
+    state["last_action"] = time.time()
+
+
+def extend_practice_notes():
+    """今の時刻から先読み分のノーツを生成しておく(lockを保持した状態で呼ぶ)。"""
+    p = state["practice"]
+    if p is None:
+        return
+    elapsed = time.time() - p["start_time"]
+    current_beat = max(0, int(elapsed / BEAT_INTERVAL_SEC))
+    horizon = current_beat + PRACTICE_LOOKAHEAD_BEATS
+    for beat in range(0, horizon + 1, PRACTICE_NOTE_EVERY):
+        if beat not in p["notes"]:
+            p["notes"][beat] = practice_color_for(beat, p["notes"])
+    # 通り過ぎて不要になった古いノーツは捨ててメモリを抑える
+    cutoff = p["next_index"] - PRACTICE_NOTE_EVERY * 4
+    for beat in [b for b in p["notes"] if b < cutoff]:
+        del p["notes"][beat]
+
+
+def practice_window():
+    """クライアントに送る、これから流れてくるノーツの一覧。"""
+    p = state["practice"]
+    if p is None:
+        return None
+    return {
+        "start_time": p["start_time"],
+        "note_every": PRACTICE_NOTE_EVERY,
+        "next_index": p["next_index"],
+        "notes": [{"beat": b, "color": c} for b, c in sorted(p["notes"].items())],
+    }
 
 
 def _request_gacha_unlock():
@@ -229,9 +328,9 @@ def _request_gacha_unlock():
 
 
 def maybe_unlock_gacha():
-    """ゲーム終了時に呼ぶ。スコアが閾値以上ならガチャの解錠をバックグラウンドで試みる。
+    """ゲーム終了時に呼ぶ。挑戦者が選んだ目標点数に到達していればガチャの解錠を試みる。
     (呼び出し元がすでに lock を保持している前提。ネットワーク待ちで長引かないよう別スレッドに逃がす)"""
-    if state["score"] >= GACHA_UNLOCK_SCORE:
+    if state["score"] >= state["target_score"]:
         state["gacha"] = {"eligible": True, "status": "pending", "detail": ""}
         threading.Thread(target=_request_gacha_unlock, daemon=True).start()
     else:
@@ -244,7 +343,7 @@ def go_idle():
     state["pattern"] = []
     state["next_active_index"] = None
     state["message"] = ""
-    state["practice_last"] = None
+    state["practice"] = None
     state["last_action"] = time.time()
 
 
@@ -259,6 +358,8 @@ def go_game_over():
 
 
 def register_judgment(judgment: str, kind: str):
+    """判定を記録する。練習モードではライフを減らさない(エンドレスで延々練習できるように)。"""
+    practicing = state["phase"] == "practice"
     state["judgment_seq"] += 1
     state["last_judgment"] = judgment
     if kind == "excellent":
@@ -269,7 +370,8 @@ def register_judgment(judgment: str, kind: str):
         state["score"] += OK_SCORE + state["combo"] * OK_COMBO_BONUS
     else:
         state["combo"] = 0
-        state["lives"] -= 1
+        if not practicing:
+            state["lives"] -= 1
 
 
 def advance_active():
@@ -317,6 +419,33 @@ def judge_press(name: str, press_time: float):
         go_game_over()
 
 
+def judge_practice_press(name: str, press_time: float):
+    """練習モードの判定。ライフは減らないので、判定表示とコンボだけが動く。"""
+    p = state["practice"]
+    if p is None:
+        return
+    idx = p["next_index"]
+    expected = p["notes"].get(idx)
+    if expected is None:
+        return
+    beat_time = p["start_time"] + idx * BEAT_INTERVAL_SEC
+    diff = press_time - beat_time
+
+    if name != expected:
+        register_judgment("MISS", "fail")
+    else:
+        absdiff = abs(diff)
+        if absdiff <= EXCELLENT_WINDOW_SEC:
+            register_judgment("EXCELLENT", "excellent")
+        elif absdiff <= OK_WINDOW_SEC:
+            register_judgment("OK", "ok")
+        else:
+            register_judgment("遅すぎ!" if diff > 0 else "早すぎ!", "fail")
+
+    p["next_index"] = idx + PRACTICE_NOTE_EVERY
+    extend_practice_notes()
+
+
 def handle_button(name: str):
     press_time = time.time()
     with lock:
@@ -327,24 +456,31 @@ def handle_button(name: str):
             return
 
         if name == "ON":
-            if state["phase"] in ("idle", "game_over", "all_clear"):
-                start_game()
+            # プレイ前に必ず目標点数を選ばせる
+            if state["phase"] in ("idle", "game_over", "all_clear", "practice"):
+                go_target_select()
             elif state["phase"] == "stage_clear":
                 start_stage(state["stage"] + 1)
             return
 
         if name == "Mode":
-            if state["phase"] == "idle":
-                state["phase"] = "practice"
-                state["practice_last"] = None
-                state["message"] = "練習モード: 好きな色ボタンを押してみよう(OFFで戻る)"
+            if state["phase"] in ("idle", "target_select"):
+                start_practice()
             return
 
         if name not in COLOR_NAMES:
             return
 
+        # 目標点数の選択: プリセットが割り当てられた色ボタンで即スタート
+        if state["phase"] == "target_select":
+            for preset in TARGET_PRESETS:
+                if preset["key"] == name:
+                    start_game(preset["score"])
+                    return
+            return
+
         if state["phase"] == "practice":
-            state["practice_last"] = name
+            judge_practice_press(name, press_time)
             return
 
         if state["phase"] != "playing":
@@ -354,10 +490,29 @@ def handle_button(name: str):
 
 
 def stage_ticker():
-    """押さなかったビートを自動でMISS判定にし、16拍を終えたらステージを終了させる。"""
+    """押さなかったビートを自動でMISS判定にし、16拍を終えたらステージを終了させる。
+    練習モードでは、通り過ぎたノーツをMISSにしつつ次のノーツを生成し続ける。"""
     while True:
         time.sleep(0.02)
         with lock:
+            if state["phase"] == "practice":
+                p = state["practice"]
+                if p is not None:
+                    now = time.time()
+                    # 判定時間を過ぎたノーツは MISS にして次へ進める(ライフは減らない)
+                    while True:
+                        idx = p["next_index"]
+                        if idx not in p["notes"]:
+                            break
+                        beat_time = p["start_time"] + idx * BEAT_INTERVAL_SEC
+                        if now - beat_time > OK_WINDOW_SEC:
+                            register_judgment("MISS", "fail")
+                            p["next_index"] = idx + PRACTICE_NOTE_EVERY
+                        else:
+                            break
+                    extend_practice_notes()
+                continue
+
             if state["phase"] != "playing":
                 continue
             now = time.time()
@@ -413,6 +568,9 @@ def find_art():
 
 @app.route("/")
 def index():
+    # プリセットには画面表示用に色コードを添えて渡す
+    hex_by_name = {c["name"]: c["hex"] for c in COLORS}
+    presets = [{**p, "hex": hex_by_name.get(p["key"], "#888")} for p in TARGET_PRESETS]
     return render_template(
         "index.html",
         colors=COLORS,
@@ -421,6 +579,8 @@ def index():
         beat_interval_ms=int(BEAT_INTERVAL_SEC * 1000),
         total_stages=TOTAL_STAGES,
         count_in_beats=COUNT_IN_BEATS,
+        target_presets=presets,
+        stage_benchmarks=STAGE_BENCHMARKS,
         art=find_art(),
     )
 
@@ -429,6 +589,7 @@ def index():
 def get_state():
     with lock:
         return jsonify({**state,
+                        "practice": practice_window(),
                         "ranking": today_top(),
                         "ranking_last_id": last_entry_id})
 
