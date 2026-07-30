@@ -55,12 +55,13 @@ const int ANGLE_FREE = 0;     // 解錠位置
 const bool IR_ACTIVE_LOW = true;
 
 // ---------------- BLE設定 ----------------
-// 色記憶ゲーム側(firmware/color_memory_game_ble)と同じNordic UART Service互換UUID体系。
-// RXは「PCから受信」、TXは「PCへ通知」の向き(標準的なNUSの割り当てに合わせている)。
+// ★注意: 色記憶ゲーム側(firmware/color_memory_game_ble)とは別デバイスとして同時にスキャン
+// されるため、Service UUIDは意図的に重複しない専用の値にすること(Nordic UART Serviceの
+// 標準UUIDをそのまま使うと、PC側がサービスUUIDだけで見分けようとした際に誤接続する)。
 constexpr char BLE_DEVICE_NAME[] = "GachaLock";
-constexpr char SERVICE_UUID[] = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E";
-constexpr char RX_CHAR_UUID[] = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E";  // 書込: 解除コマンド
-constexpr char TX_CHAR_UUID[] = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E";  // 通知: 状態
+constexpr char SERVICE_UUID[] = "3F316DB0-CE69-462E-8C66-13D130EEB732";
+constexpr char RX_CHAR_UUID[] = "3F316DB1-CE69-462E-8C66-13D130EEB732";  // 書込: 解除コマンド
+constexpr char TX_CHAR_UUID[] = "3F316DB2-CE69-462E-8C66-13D130EEB732";  // 通知: 状態
 
 // ---------------- 画面の色 (RGB565) ----------------
 #define C_BLACK 0x0000

@@ -517,11 +517,13 @@ def ble_reader():
 # ブリッジ)とは別デバイス・別接続として、常時つなぎっぱなしにしておく。
 # RXキャラクタリスティックに "UNLOCK" を書き込むと解錠、TXキャラクタリスティックの通知で
 # ESP32側の状態("LOCKED"/"UNLOCKED"/"DISPENSED"等)を受け取れる。
+# ★Service UUIDはColorMemoryGame(6E400001...)とは別の値にすること。実機テストで、
+# 同じUUIDを使った際にサービスUUID一致だけでColorMemoryGame側に誤接続する事故が発生した。
 
 GACHA_BLE_DEVICE_NAME = "GachaLock"
-GACHA_BLE_SERVICE_UUID = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
-GACHA_BLE_RX_CHAR_UUID = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"  # 書き込み: 解除コマンド
-GACHA_BLE_TX_CHAR_UUID = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"  # 通知: 状態
+GACHA_BLE_SERVICE_UUID = "3F316DB0-CE69-462E-8C66-13D130EEB732"
+GACHA_BLE_RX_CHAR_UUID = "3F316DB1-CE69-462E-8C66-13D130EEB732"  # 書き込み: 解除コマンド
+GACHA_BLE_TX_CHAR_UUID = "3F316DB2-CE69-462E-8C66-13D130EEB732"  # 通知: 状態
 
 gacha_ble_state_lock = threading.Lock()
 gacha_ble_state = {"client": None, "loop": None}
