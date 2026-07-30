@@ -90,6 +90,8 @@ Servo lockServo;
 NimBLECharacteristic* txChar = nullptr;
 volatile bool pcConnected = false;
 volatile bool bleUnlockReq = false;
+volatile bool bleLockReq = false;    // 管理画面からの強制施錠
+volatile bool bleStatusReq = false;  // 管理画面からの状態問い合わせ
 
 // ---------------- 状態 ----------------
 // ST_THANKS: カプセルを検知して再施錠した直後、「ありがとう」を数秒見せている状態。
@@ -107,11 +109,20 @@ void notifyStatus(const char* s) {
   if (pcConnected) txChar->notify();
 }
 
+// 今の状態を表す文字列。PC側はこれを見てロック状況を把握する。
+const char* stateName() {
+  switch (state) {
+    case ST_UNLOCKED: return "UNLOCKED";
+    case ST_THANKS:   return "DISPENSED";   // サーボは施錠済み、お礼を表示中
+    default:          return "LOCKED";
+  }
+}
+
 class ServerCallbacks : public NimBLEServerCallbacks {
   void onConnect(NimBLEServer* server, NimBLEConnInfo& connInfo) override {
     pcConnected = true;
     Serial.println("[BLE] PC connected");
-    notifyStatus(state == ST_LOCKED ? "LOCKED" : "UNLOCKED");
+    notifyStatus(stateName());
   }
   void onDisconnect(NimBLEServer* server, NimBLEConnInfo& connInfo, int reason) override {
     pcConnected = false;
@@ -126,9 +137,18 @@ class RxCallbacks : public NimBLECharacteristicCallbacks {
     String cmd(v.c_str());
     cmd.trim();
     cmd.toUpperCase();
+    // UNLOCK: 解錠(ゲームクリア時 / 管理画面の手動解錠)
+    // LOCK  : 強制施錠(管理画面の手動施錠。状態に関係なく即ロックする)
+    // STATUS: 今の状態を通知で返す(管理画面の状態確認)
     if (cmd == "UNLOCK") {
       Serial.println("[BLE] UNLOCK command received");
       bleUnlockReq = true;
+    } else if (cmd == "LOCK") {
+      Serial.println("[BLE] LOCK command received");
+      bleLockReq = true;
+    } else if (cmd == "STATUS") {
+      Serial.println("[BLE] STATUS command received");
+      bleStatusReq = true;
     }
   }
 };
@@ -280,6 +300,18 @@ void setup() {
 
 // ---------------- loop ----------------
 void loop() {
+  // --- 管理画面からの割り込み(状態に関係なく先に処理する) ---
+  if (bleStatusReq) {
+    bleStatusReq = false;
+    notifyStatus(stateName());
+  }
+  if (bleLockReq) {
+    bleLockReq = false;
+    Serial.println("[CMD] 強制施錠");
+    lockNow();
+    delay(200);
+  }
+
   if (state == ST_LOCKED) {
     // 解除指示を待つ
     if (unlockRequested()) {

@@ -424,6 +424,83 @@
   .rp-foot { font-size: 12px; color: var(--text-3); text-align: center; min-height: 17px; }
   .rp-foot.warn { color: #ffb04a; }
 
+  /* --- 管理者パネル (右下常駐) --- */
+  #admin { position: fixed; right: 14px; bottom: 14px; z-index: 40; }
+  #admin > summary {
+    list-style: none;
+    width: 40px;
+    height: 40px;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    border-radius: 50%;
+    background: var(--panel);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--panel-border);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    opacity: 0.5;
+    transition: opacity 160ms ease, transform 160ms ease;
+  }
+  #admin > summary::-webkit-details-marker { display: none; }
+  #admin > summary:hover { opacity: 1; transform: scale(1.08); }
+  #admin[open] > summary { opacity: 1; }
+  .ad-body {
+    width: 258px;
+    margin-top: 8px;
+    padding: 13px 14px 11px;
+    background: rgba(16, 18, 24, 0.95);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+    font-size: 11.5px;
+  }
+  .ad-title { font-size: 12px; font-weight: 800; letter-spacing: 0.1em; margin-bottom: 9px; }
+  .ad-status { background: rgba(0, 0, 0, 0.3); border-radius: 9px; padding: 7px 9px; margin-bottom: 10px; }
+  .ad-row { display: flex; justify-content: space-between; gap: 8px; padding: 1.5px 0; }
+  .ad-row span { color: var(--text-3); }
+  .ad-row b { font-weight: 700; }
+  .ad-row b.ok { color: #4ade80; }
+  .ad-row b.ng { color: var(--red); }
+  .ad-row b.warn { color: #ffb04a; }
+  .ad-group {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    color: var(--text-3);
+    margin: 9px 0 5px;
+  }
+  .ad-btns { display: flex; flex-direction: column; gap: 5px; }
+  .ad-btn {
+    font: inherit;
+    font-size: 11.5px;
+    text-align: left;
+    padding: 7px 10px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background 140ms ease, border-color 140ms ease;
+  }
+  .ad-btn:hover { background: rgba(255, 255, 255, 0.13); border-color: rgba(255, 255, 255, 0.24); }
+  .ad-btn:disabled { opacity: 0.45; cursor: default; }
+  .ad-btn.go { border-color: rgba(74, 222, 128, 0.4); }
+  .ad-btn.go:hover { background: rgba(74, 222, 128, 0.16); }
+  .ad-btn.stop { border-color: rgba(86, 215, 255, 0.4); }
+  .ad-btn.stop:hover { background: rgba(86, 215, 255, 0.16); }
+  .ad-btn.danger { border-color: rgba(255, 90, 90, 0.4); color: #ff9a9a; }
+  .ad-btn.danger:hover { background: rgba(255, 90, 90, 0.16); }
+  .ad-note { margin-top: 9px; font-size: 9.5px; line-height: 1.6; color: var(--text-3); }
+  .ad-result { margin-top: 7px; min-height: 15px; font-size: 10.5px; }
+  .ad-result.ok { color: #4ade80; }
+  .ad-result.ng { color: var(--red); }
+
   #message { font-size: 15.5px; min-height: 22px; color: #c6ccd8; text-align: center; letter-spacing: 0.02em; }
   #best { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 
@@ -801,6 +878,46 @@
     <div id="introTitle"></div>
     <div id="introBar"></div>
   </div>
+
+  <!-- 管理者パネル: 右下に常駐。もしもの時に手動で信号を送るための逃げ道 -->
+  <details id="admin">
+    <summary title="管理者パネル">🛠</summary>
+    <div class="ad-body">
+      <div class="ad-title">管理者パネル</div>
+
+      <div class="ad-status">
+        <div class="ad-row"><span>ガチャ機BLE</span><b id="adConn">—</b></div>
+        <div class="ad-row"><span>ロック状態</span><b id="adDevice">—</b></div>
+        <div class="ad-row"><span>ゲーム</span><b id="adPhase">—</b></div>
+        <div class="ad-row"><span>次の人待たせ</span><b id="adAwaiting">—</b></div>
+      </div>
+
+      <div class="ad-group">ガチャ機に直接送る</div>
+      <div class="ad-btns">
+        <button class="ad-btn go" data-action="gacha_unlock">🔓 解錠する</button>
+        <button class="ad-btn stop" data-action="gacha_lock">🔒 施錠する</button>
+        <button class="ad-btn" data-action="gacha_status">📡 状態を確認</button>
+      </div>
+
+      <div class="ad-group">ゲーム側</div>
+      <div class="ad-btns">
+        <button class="ad-btn" data-action="game_reset">↩ 待機状態に戻す</button>
+        <button class="ad-btn" data-action="clear_awaiting">⏭ 待たせを解除</button>
+      </div>
+
+      <div class="ad-group">記録</div>
+      <div class="ad-btns">
+        <button class="ad-btn danger" data-action="ranking_clear"
+                data-confirm="今日のランキング記録を全部消します。元に戻せません。よろしいですか?">🗑 今日の記録を消す</button>
+      </div>
+
+      <div class="ad-note">
+        リモコン操作は画面のリモコンをクリックでも送れます。<br>
+        ※「解錠する」はゲームの達成判定とは無関係に信号だけ送ります。
+      </div>
+      <div class="ad-result" id="adResult"></div>
+    </div>
+  </details>
 
 <script>
 const STARTING_LIVES = {{ starting_lives }};
@@ -1231,6 +1348,7 @@ function renderResult(state) {
 }
 
 function render(state) {
+  renderAdmin(state);
   stageEl.textContent = state.stage;
   scoreEl.textContent = state.score;
   renderRanking(state.ranking || [], state.ranking_last_id);
@@ -1354,6 +1472,57 @@ async function poll() {
   }
   setTimeout(poll, 100);
 }
+
+// --- 管理者パネル ---
+// もしもの時(ガチャが詰まった / 解錠信号が届かなかった / テスト記録を消したい 等)に
+// 運営が手動で介入するためのパネル。合言葉は付けない(手元運用のため)。
+const adResultEl = document.getElementById('adResult');
+const adConnEl = document.getElementById('adConn');
+const adDeviceEl = document.getElementById('adDevice');
+const adPhaseEl = document.getElementById('adPhase');
+const adAwaitingEl = document.getElementById('adAwaiting');
+
+const PHASE_JA = {
+  idle: '待機中', target_select: '目標えらび中', practice: '練習中',
+  playing: 'プレイ中', stage_clear: 'ステージクリア',
+  game_over: 'ゲームオーバー', all_clear: '全クリア',
+};
+const DEVICE_JA = { LOCKED: '施錠', UNLOCKED: '解錠', DISPENSED: '排出済み' };
+
+function renderAdmin(state) {
+  const g = state.gacha || {};
+  adConnEl.textContent = g.connected ? '接続中' : '未接続';
+  adConnEl.className = g.connected ? 'ok' : 'ng';
+  adDeviceEl.textContent = DEVICE_JA[g.device] || '不明';
+  adDeviceEl.className = g.device === 'UNLOCKED' ? 'warn' : (g.device ? 'ok' : '');
+  adPhaseEl.textContent = PHASE_JA[state.phase] || state.phase;
+  adAwaitingEl.textContent = g.awaiting ? 'あり(ON無効)' : 'なし';
+  adAwaitingEl.className = g.awaiting ? 'warn' : '';
+}
+
+document.querySelectorAll('#admin .ad-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const confirmMsg = btn.dataset.confirm;
+    if (confirmMsg && !window.confirm(confirmMsg)) return;
+    btn.disabled = true;
+    adResultEl.textContent = '送信中...';
+    adResultEl.className = 'ad-result';
+    try {
+      const res = await fetch('/admin/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: btn.dataset.action }),
+      });
+      const data = await res.json();
+      adResultEl.textContent = (data.ok ? '✅ ' : '⚠️ ') + (data.message || '');
+      adResultEl.className = 'ad-result ' + (data.ok ? 'ok' : 'ng');
+    } catch (e) {
+      adResultEl.textContent = '⚠️ サーバーに送れませんでした';
+      adResultEl.className = 'ad-result ng';
+    }
+    btn.disabled = false;
+  });
+});
 
 poll();
 </script>

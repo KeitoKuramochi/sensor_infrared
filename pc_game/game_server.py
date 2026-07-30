@@ -320,8 +320,13 @@ def practice_window():
     }
 
 
-def _request_gacha_unlock():
-    """ガチャ機のESP32(BLE)に解錠コマンドを送る(別スレッドで実行、失敗しても無視する)。"""
+def send_gacha_command(cmd: str):
+    """ガチャ機のESP32(BLE)にコマンドを送る。(成功したか, 詳細) を返す。
+
+    受け付けるコマンドは firmware/gacha_lock_ble 側の実装に対応:
+      UNLOCK / LOCK / STATUS
+    BLEの待ちが入るのでメインスレッドから直接呼ばないこと(lockも保持しない)。
+    """
     import asyncio
 
     with gacha_ble_state_lock:
@@ -329,22 +334,26 @@ def _request_gacha_unlock():
         loop = gacha_ble_state["loop"]
 
     if client is None or loop is None:
-        ok, detail = False, "ガチャ機(GachaLock)にBLE接続していません"
-    else:
-        async def do_write():
-            # ファーム側は WRITE(応答あり)で定義しているので response=True で送る。
-            # (response=False だと Write Without Response 扱いになり、WRITE_NR 属性を
-            #  持たないキャラクタリスティックでは破棄されて解錠されない。実機で確認済み)
-            await client.write_gatt_char(
-                GACHA_BLE_RX_CHAR_UUID, b"UNLOCK", response=True)
+        return False, "ガチャ機(GachaLock)にBLE接続していません"
 
-        try:
-            future = asyncio.run_coroutine_threadsafe(do_write(), loop)
-            future.result(timeout=GACHA_TIMEOUT_SEC)
-            ok, detail = True, ""
-        except Exception as e:
-            ok, detail = False, str(e)
+    async def do_write():
+        # ファーム側は WRITE(応答あり)で定義しているので response=True で送る。
+        # (response=False だと Write Without Response 扱いになり、WRITE_NR 属性を
+        #  持たないキャラクタリスティックでは破棄されて解錠されない。実機で確認済み)
+        await client.write_gatt_char(
+            GACHA_BLE_RX_CHAR_UUID, cmd.encode(), response=True)
 
+    try:
+        future = asyncio.run_coroutine_threadsafe(do_write(), loop)
+        future.result(timeout=GACHA_TIMEOUT_SEC)
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+
+
+def _request_gacha_unlock():
+    """ゲームクリア時の解錠(別スレッドで実行、失敗してもゲームは止めない)。"""
+    ok, detail = send_gacha_command("UNLOCK")
     with lock:
         g = state["gacha"]
         g["status"] = "ok" if ok else "error"
@@ -636,6 +645,61 @@ def post_button():
     name = data.get("button", "")
     handle_button(name)
     return jsonify({"ok": True})
+
+
+# --- 管理者用の手動操作 ---
+# イベント中に「ガチャが詰まった」「解錠信号が届かなかった」等が起きたときに、
+# 運営が画面から直接介入できるようにする。合言葉等は付けない(手元運用のため)。
+
+@app.route("/admin/action", methods=["POST"])
+def admin_action():
+    action = (request.get_json(silent=True) or {}).get("action", "")
+
+    # --- ガチャ機に直接コマンドを送る ---
+    if action in ("gacha_unlock", "gacha_lock", "gacha_status"):
+        cmd = {"gacha_unlock": "UNLOCK",
+               "gacha_lock": "LOCK",
+               "gacha_status": "STATUS"}[action]
+        ok, detail = send_gacha_command(cmd)
+        if ok and action == "gacha_lock":
+            # 手動で施錠したなら、次の人を待たせる必要はもう無い
+            with lock:
+                state["gacha"]["awaiting"] = False
+        print(f"[ADMIN] {cmd} {'成功' if ok else '失敗: ' + detail}")
+        return jsonify({"ok": ok,
+                        "message": f"{cmd} を送信しました" if ok else f"送信できません: {detail}"})
+
+    # --- ゲーム側の状態を戻す ---
+    if action == "game_reset":
+        with lock:
+            go_idle()
+        print("[ADMIN] ゲームを待機状態に戻しました")
+        return jsonify({"ok": True, "message": "待機状態に戻しました"})
+
+    if action == "clear_awaiting":
+        with lock:
+            state["gacha"]["awaiting"] = False
+            state["gacha"]["status"] = None
+        print("[ADMIN] 再施錠待ちを解除しました")
+        return jsonify({"ok": True, "message": "次の人が始められるようにしました"})
+
+    # --- 今日のランキングを消す(イベント前のテスト記録の掃除用) ---
+    if action == "ranking_clear":
+        global last_entry_id
+        today = time.strftime("%Y-%m-%d")
+        with lock:
+            removed = len(rankings.pop(today, []))
+            # 消した記録を指したままだと「NEW」バッジが幽霊表示になるのでクリアする
+            last_entry_id = None
+            try:
+                with open(RANKING_FILE, "w", encoding="utf-8") as f:
+                    json.dump(rankings, f, ensure_ascii=False)
+            except OSError as e:
+                return jsonify({"ok": False, "message": f"保存に失敗: {e}"})
+        print(f"[ADMIN] 今日のランキングを{removed}件削除しました")
+        return jsonify({"ok": True, "message": f"今日の記録 {removed}件を削除しました"})
+
+    return jsonify({"ok": False, "message": f"不明な操作: {action}"}), 400
 
 
 # --- BLE受信 (firmware/color_memory_game_ble 用) ---
