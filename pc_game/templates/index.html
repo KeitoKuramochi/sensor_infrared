@@ -940,9 +940,11 @@
       <div class="ad-title">管理者パネル</div>
 
       <div class="ad-status">
-        <div class="ad-row"><span>ガチャ機BLE</span><b id="adConn">—</b></div>
+        <div class="ad-row"><span>ガチャ機通信</span><b id="adConn">—</b></div>
+        <div class="ad-row"><span>電波強度</span><b id="adRssi">—</b></div>
         <div class="ad-row"><span>接続の長さ</span><b id="adUptime">—</b></div>
-        <div class="ad-row"><span>再接続回数</span><b id="adReconn">—</b></div>
+        <div class="ad-row"><span>切断した回数</span><b id="adReconn">—</b></div>
+        <div class="ad-row"><span>排出の通算</span><b id="adDispensed">—</b></div>
         <div class="ad-row"><span>ロック状態</span><b id="adDevice">—</b></div>
         <div class="ad-row"><span>ゲーム</span><b id="adPhase">—</b></div>
         <div class="ad-row"><span>次の人待たせ</span><b id="adAwaiting">—</b></div>
@@ -1642,6 +1644,8 @@ const adResultEl = document.getElementById('adResult');
 const adConnEl = document.getElementById('adConn');
 const adUptimeEl = document.getElementById('adUptime');
 const adReconnEl = document.getElementById('adReconn');
+const adRssiEl = document.getElementById('adRssi');
+const adDispensedEl = document.getElementById('adDispensed');
 const adDeviceEl = document.getElementById('adDevice');
 const adPhaseEl = document.getElementById('adPhase');
 const adAwaitingEl = document.getElementById('adAwaiting');
@@ -1664,12 +1668,23 @@ function renderAdmin(state) {
   adConnEl.textContent = g.connected ? '接続中' : '未接続';
   adConnEl.className = g.connected ? 'ok' : 'ng';
 
-  // 接続が長く続いている＝置き場所が良い。再接続が増えるなら電波が届きにくい位置
+  // 接続が長く続いている＝置き場所が良い。切断が増えるなら電波が届きにくい位置
   adUptimeEl.textContent = (g.connected && g.connected_since)
     ? fmtDuration(Date.now() / 1000 - g.connected_since) : '—';
   const rc = g.reconnects || 0;
   adReconnEl.textContent = `${rc}回`;
   adReconnEl.className = rc === 0 ? 'ok' : (rc < 4 ? 'warn' : 'ng');
+
+  // ガチャ機から見たWiFiの電波強度。-70より弱いと不安定になりやすい
+  if (typeof g.rssi === 'number') {
+    adRssiEl.textContent = `${g.rssi} dBm`;
+    adRssiEl.className = g.rssi > -60 ? 'ok' : (g.rssi > -72 ? 'warn' : 'ng');
+  } else {
+    adRssiEl.textContent = '—';
+    adRssiEl.className = '';
+  }
+  adDispensedEl.textContent = (typeof g.dispense_count === 'number')
+    ? `${g.dispense_count}個` : '—';
   adDeviceEl.textContent = DEVICE_JA[g.device] || '不明';
   adDeviceEl.className = g.device === 'UNLOCKED' ? 'warn' : (g.device ? 'ok' : '');
   adPhaseEl.textContent = PHASE_JA[state.phase] || state.phase;

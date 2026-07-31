@@ -33,6 +33,7 @@ import random
 import sys
 import threading
 import time
+import urllib.request
 
 from flask import Flask, jsonify, render_template, request
 
@@ -101,11 +102,18 @@ DEFAULT_TARGET_SCORE = 500
 GACHA_UNLOCK_DELAY_SEC = 4.2
 
 # --- ガチャロック解除 (友人(MaedaReno)制作の gacha-machine プロジェクトとの連携) ---
-# ガチャ機側のESP32には firmware/gacha_lock_ble を書き込む。BLEで「GachaLock」として
-# アドバタイズし、コマンド用キャラクタリスティックに "UNLOCK" を書き込むとサーボ錠を解錠する。
-# WiFiの繋ぎ変えが不要で、色記憶ゲーム側のBLE接続(ColorMemoryGame)とも共存できる。
+# ガチャ機側のESP32には firmware/gacha_lock_wifi を書き込む。同じLANに繋がり、
+# HTTPで /status /unlock /lock を受け付ける。mDNSで gacha.local を名乗るのでIPは不要。
+#
+# 以前はBLE版(firmware/gacha_lock_ble)を使っていたが、電波が弱いと接続が頻繁に切れ、
+# 「排出した」の通知を取りこぼして次の人に進めなくなる問題が実イベントで出たため
+# WiFiに移行した。ポーリング方式なので一時的に通信が途切れても次のポーリングで
+# 追いつける。さらに排出は通算カウンタで数えるので、取りこぼしても検知できる。
+# (リモコン側 ColorMemoryGame はBLEのまま。そちらは安定しているため)
+GACHA_HOST = os.environ.get("GACHA_HOST", "gacha.local")
+GACHA_TIMEOUT_SEC = 3
+GACHA_POLL_SEC = 0.4       # 状態を見に行く間隔
 # 解除に必要な点数は挑戦者がプレイ開始時に選ぶ (TARGET_PRESETS)。
-GACHA_TIMEOUT_SEC = 5
 
 lock = threading.Lock()
 state = {
@@ -138,8 +146,10 @@ state = {
     #   connected: ガチャ機とBLE接続できているか
     #   device   : ガチャ機が通知してきた実際の状態。None | "LOCKED" | "UNLOCKED" | "DISPENSED"
     #   awaiting : 解錠したがまだ再施錠されていない(=次の人を待たせる)
-    #   reconnects: 接続が切れて張り直した回数。増え続けるなら置き場所が悪い
-    #   connected_since: 今の接続が始まった時刻(電波品質の目安になる)
+    #   reconnects: 通信が切れて復帰した回数。増え続けるなら置き場所か電波が悪い
+    #   connected_since: 今の接続が始まった時刻
+    #   rssi: ガチャ機から見たWiFiの電波強度(dBm)。設置位置の判断に使う
+    #   dispense_count: ガチャ機が数えている排出の通算数(差分で新しい排出を検知する)
     "gacha": {
         "eligible": False,
         "status": None,
@@ -149,6 +159,8 @@ state = {
         "awaiting": False,
         "reconnects": 0,
         "connected_since": None,
+        "rssi": None,
+        "dispense_count": None,
     },
 }
 
@@ -329,35 +341,56 @@ def practice_window():
     }
 
 
-def send_gacha_command(cmd: str):
-    """ガチャ機のESP32(BLE)にコマンドを送る。(成功したか, 詳細) を返す。
+def apply_gacha_status(data: dict):
+    """ガチャ機から返ってきた状態を state に反映する。
 
-    受け付けるコマンドは firmware/gacha_lock_ble 側の実装に対応:
-      UNLOCK / LOCK / STATUS
-    BLEの待ちが入るのでメインスレッドから直接呼ばないこと(lockも保持しない)。
+    排出は「通算カウンタ(dispensed)が増えたか」で判定する。BLEの通知方式では
+    切断中の1回を取りこぼすと永久に次へ進めなくなったが、カウンタなら
+    通信が一時的に途切れても、復帰後の差分で確実に気づける。
     """
-    import asyncio
+    with lock:
+        g = state["gacha"]
+        dev = str(data.get("state", "")).upper()
+        if dev in ("LOCKED", "UNLOCKED", "DISPENSED"):
+            g["device"] = dev
+        g["rssi"] = data.get("rssi")
 
-    with gacha_ble_state_lock:
-        client = gacha_ble_state["client"]
-        loop = gacha_ble_state["loop"]
+        count = data.get("dispensed")
+        if isinstance(count, int):
+            prev = g.get("dispense_count")
+            if prev is not None and count > prev:
+                print(f"[GACHA] カプセルの排出を確認しました (通算{count}個目)")
+            g["dispense_count"] = count
 
-    if client is None or loop is None:
-        return False, "ガチャ機(GachaLock)にBLE接続していません"
+        # 施錠まで戻ったら、次の人が始められる
+        if dev == "LOCKED" and g["awaiting"]:
+            g["awaiting"] = False
+            print("[GACHA] 再施錠を確認しました — 次の人どうぞ")
 
-    async def do_write():
-        # ファーム側は WRITE(応答あり)で定義しているので response=True で送る。
-        # (response=False だと Write Without Response 扱いになり、WRITE_NR 属性を
-        #  持たないキャラクタリスティックでは破棄されて解錠されない。実機で確認済み)
-        await client.write_gatt_char(
-            GACHA_BLE_RX_CHAR_UUID, cmd.encode(), response=True)
 
+def gacha_http(path: str):
+    """ガチャ機にHTTPでアクセスして、返ってきたJSONを返す。
+    (成功したか, データまたはエラー文) を返す。ネットワーク待ちが入るので
+    lock を保持したまま呼ばないこと。"""
+    url = f"http://{GACHA_HOST}/{path}"
     try:
-        future = asyncio.run_coroutine_threadsafe(do_write(), loop)
-        future.result(timeout=GACHA_TIMEOUT_SEC)
-        return True, ""
+        with urllib.request.urlopen(url, timeout=GACHA_TIMEOUT_SEC) as resp:
+            return True, json.loads(resp.read().decode())
     except Exception as e:
         return False, str(e)
+
+
+def send_gacha_command(cmd: str):
+    """ガチャ機にコマンドを送る。(成功したか, 詳細) を返す。
+    受け付けるコマンドは firmware/gacha_lock_wifi 側の実装に対応: UNLOCK / LOCK / STATUS"""
+    path = {"UNLOCK": "unlock", "LOCK": "lock", "STATUS": "status"}.get(cmd)
+    if path is None:
+        return False, f"不明なコマンド: {cmd}"
+    ok, data = gacha_http(path)
+    if ok:
+        apply_gacha_status(data)
+        return True, ""
+    return False, f"ガチャ機({GACHA_HOST})に接続できません: {data}"
 
 
 def _request_gacha_unlock():
@@ -787,123 +820,43 @@ def ble_reader():
     asyncio.run(run())
 
 
-# --- ガチャ機BLE接続 (firmware/gacha_lock_ble 用) ---
-# ガチャ機のESP32はBLEで「GachaLock」としてアドバタイズする。ColorMemoryGame(リモコン
-# ブリッジ)とは別デバイス・別接続として、常時つなぎっぱなしにしておく。
-# RXキャラクタリスティックに "UNLOCK" を書き込むと解錠、TXキャラクタリスティックの通知で
-# ESP32側の状態("LOCKED"/"UNLOCKED"/"DISPENSED"等)を受け取れる。
-# ★Service UUIDはColorMemoryGame(6E400001...)とは別の値にすること。実機テストで、
-# 同じUUIDを使った際にサービスUUID一致だけでColorMemoryGame側に誤接続する事故が発生した。
-
-GACHA_BLE_DEVICE_NAME = "GachaLock"
-GACHA_BLE_SERVICE_UUID = "3F316DB0-CE69-462E-8C66-13D130EEB732"
-GACHA_BLE_RX_CHAR_UUID = "3F316DB1-CE69-462E-8C66-13D130EEB732"  # 書き込み: 解除コマンド
-GACHA_BLE_TX_CHAR_UUID = "3F316DB2-CE69-462E-8C66-13D130EEB732"  # 通知: 状態
-
-gacha_ble_state_lock = threading.Lock()
-gacha_ble_state = {"client": None, "loop": None}
+# --- ガチャ機との通信 (firmware/gacha_lock_wifi 用) ---
+# ガチャ機のESP32は同じLAN上でHTTPサーバーとして待ち受け、mDNSで gacha.local を名乗る。
+# BLEの通知方式は電波が弱いと切断で取りこぼしが起きたため、こちらから定期的に
+# 状態を見に行くポーリング方式にした。一時的に通信が切れても次のポーリングで追いつく。
 
 
-def gacha_ble_reader():
-    """ガチャ機ESP32とのBLE接続を維持する。未発見・切断時は自動で再試行し続ける。"""
-    try:
-        import asyncio
-        from bleak import BleakClient, BleakScanner
-    except ImportError:
-        print("[GACHA-BLE] bleak が無いため無効です (pip install 'bleak<3')")
-        return
-
-    def matches(device, adv):
-        # ファーム側は名前を広告本体に、サービスUUIDをスキャン応答に入れている
-        # (電波が弱くても見つかるように)。そのため名前での判定を主にする。
-        if (device.name or adv.local_name) == GACHA_BLE_DEVICE_NAME:
-            return True
-        uuids = [u.lower() for u in (adv.service_uuids or [])]
-        return GACHA_BLE_SERVICE_UUID.lower() in uuids
-
-    def on_notify(_char, data):
-        """ガチャ機から届く状態通知を反映する。
-        ファーム側は施錠/解錠/カプセル検知のたびに "LOCKED"/"UNLOCKED"/"DISPENSED" を送る。
-        これを追いかけることで、PC側が実際のロック状態を把握しながら次の人へ進める。"""
-        text = bytes(data).decode(errors="ignore").strip().upper()
-        if not text:
-            return
-        print(f"[GACHA-BLE] status: {text}")
-        with lock:
-            g = state["gacha"]
-            if text in ("LOCKED", "UNLOCKED", "DISPENSED"):
-                g["device"] = text
-            if text == "LOCKED" and g["awaiting"]:
-                # カプセルが出て再施錠された = 次の人が始められる
-                g["awaiting"] = False
-                print("[GACHA] 再施錠を確認しました — 次の人どうぞ")
-
-    connect_count = [0]   # 何回目の接続か(1回目は「再接続」に数えない)
-
-    async def run():
-        waiting_logged = False
-        while True:
-            try:
-                device = await BleakScanner.find_device_by_filter(
-                    matches, timeout=5.0)
-                if device is None:
-                    if not waiting_logged:
-                        print(f"[GACHA-BLE] ESP32「{GACHA_BLE_DEVICE_NAME}」を探しています... "
-                              "(電源が入っていれば自動で見つかります)")
-                        waiting_logged = True
-                    await asyncio.sleep(2)
-                    continue
-
-                disconnected = asyncio.Event()
-                loop = asyncio.get_running_loop()
-
-                def on_disconnect(_client):
-                    with gacha_ble_state_lock:
-                        gacha_ble_state["client"] = None
-                    with lock:
-                        state["gacha"]["connected"] = False
-                        state["gacha"]["connected_since"] = None
-                    loop.call_soon_threadsafe(disconnected.set)
-
-                async with BleakClient(
-                        device, disconnected_callback=on_disconnect) as client:
-                    print("[GACHA-BLE] 接続しました — ガチャロック解除OKです")
-                    waiting_logged = False
-                    await client.start_notify(GACHA_BLE_TX_CHAR_UUID, on_notify)
-                    with gacha_ble_state_lock:
-                        gacha_ble_state["client"] = client
-                        gacha_ble_state["loop"] = loop
-                    with lock:
-                        g = state["gacha"]
-                        g["connected"] = True
-                        g["connected_since"] = time.time()
-                        # 初回は0のまま。以降の接続=張り直しなのでカウントする
-                        if connect_count[0] > 0:
-                            g["reconnects"] += 1
-                    connect_count[0] += 1
-
-                    # ★接続直後に必ず現在の状態を問い合わせて同期する。
-                    # ファーム側もonConnectで状態を通知するが、それはこちらが
-                    # start_notify を終える前に飛ぶことがあり取りこぼす。
-                    # プレイ中に切断されると「排出した/施錠した」の通知が届かず、
-                    # PC側だけが排出待ちのまま固まるので、復帰時の同期は必須。
-                    try:
-                        await client.write_gatt_char(
-                            GACHA_BLE_RX_CHAR_UUID, b"STATUS", response=True)
-                    except Exception as e:
-                        print(f"[GACHA-BLE] 状態の問い合わせに失敗: {e}")
-
-                    await disconnected.wait()
-                print("[GACHA-BLE] 切断されました — 再接続します")
-            except Exception as e:
-                print(f"[GACHA-BLE] エラー: {e} — 3秒後に再接続します")
-                with gacha_ble_state_lock:
-                    gacha_ble_state["client"] = None
-                with lock:
-                    state["gacha"]["connected"] = False
-                await asyncio.sleep(3)
-
-    asyncio.run(run())
+def gacha_poller():
+    """定期的にガチャ機の状態を見に行き、接続状況と排出状況を追いかける。"""
+    print(f"[GACHA] {GACHA_HOST} を監視します (mDNS。IPを直接指定したいときは "
+          f"環境変数 GACHA_HOST で上書きできます)")
+    was_connected = None
+    first = True
+    while True:
+        ok, data = gacha_http("status")
+        if ok:
+            apply_gacha_status(data)
+            with lock:
+                g = state["gacha"]
+                if not g["connected"]:
+                    g["connected"] = True
+                    g["connected_since"] = time.time()
+                    if not first:
+                        g["reconnects"] += 1
+            if was_connected is not True:
+                print(f"[GACHA] つながりました ({GACHA_HOST}) — "
+                      f"電波 {data.get('rssi')} dBm")
+            was_connected = True
+            first = False
+        else:
+            with lock:
+                g = state["gacha"]
+                g["connected"] = False
+                g["connected_since"] = None
+            if was_connected is not False:
+                print(f"[GACHA] つながりません: {data}")
+            was_connected = False
+        time.sleep(GACHA_POLL_SEC)
 
 
 if __name__ == "__main__":
@@ -911,5 +864,5 @@ if __name__ == "__main__":
     sys.stdout.reconfigure(line_buffering=True)
     threading.Thread(target=stage_ticker, daemon=True).start()
     threading.Thread(target=ble_reader, daemon=True).start()
-    threading.Thread(target=gacha_ble_reader, daemon=True).start()
+    threading.Thread(target=gacha_poller, daemon=True).start()
     app.run(host="0.0.0.0", port=8000, debug=False)

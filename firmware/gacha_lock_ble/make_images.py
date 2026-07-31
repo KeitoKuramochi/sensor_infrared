@@ -24,7 +24,15 @@ WIDTH = 320
 HEIGHT = 170
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT_PATH = os.path.join(HERE, "images.h")
+FIRMWARE_DIR = os.path.dirname(HERE)
+
+# 元画像はこのフォルダ(BLE版)に置くが、生成した images.h は同じ画面を使う
+# 別バージョンのスケッチ(WiFi版)にも配る。Arduinoは同じフォルダのファイルしか
+# includeできないため、それぞれのスケッチフォルダに置く必要がある。
+OUT_PATHS = [
+    os.path.join(HERE, "images.h"),
+    os.path.join(FIRMWARE_DIR, "gacha_lock_wifi", "images.h"),
+]
 
 # (Cのシンボル名, 元画像のベース名)
 IMAGES = [
@@ -85,19 +93,23 @@ def main():
     if not found:
         sys.exit("変換できる画像がありません。PROMPTS.md を参考に画像を用意してください。")
 
-    with open(OUT_PATH, "w") as f:
-        f.write("// このファイルは make_images.py が自動生成します。手で編集しないこと。\n")
-        f.write("// 元画像: " + ", ".join(os.path.basename(p) for _, _, p, _ in found) + "\n\n")
-        f.write("#pragma once\n#include <stdint.h>\n\n")
-        f.write(f"#define IMG_W {WIDTH}\n#define IMG_H {HEIGHT}\n\n")
-        for symbol, _, _, values in found:
-            f.write(f"#define HAS_{symbol} 1\n")
-        f.write("\n")
-        for symbol, _, _, values in found:
-            emit(f, symbol, values)
+    for out_path in OUT_PATHS:
+        if not os.path.isdir(os.path.dirname(out_path)):
+            continue   # そのバージョンのスケッチが無ければ飛ばす
+        with open(out_path, "w") as f:
+            f.write("// このファイルは make_images.py が自動生成します。手で編集しないこと。\n")
+            f.write("// 元画像: " + ", ".join(os.path.basename(p) for _, _, p, _ in found) + "\n\n")
+            f.write("#pragma once\n#include <stdint.h>\n\n")
+            f.write(f"#define IMG_W {WIDTH}\n#define IMG_H {HEIGHT}\n\n")
+            for symbol, _, _, values in found:
+                f.write(f"#define HAS_{symbol} 1\n")
+            f.write("\n")
+            for symbol, _, _, values in found:
+                emit(f, symbol, values)
+        print(f"[out]  {out_path}")
 
     total = sum(len(v) * 2 for _, _, _, v in found)
-    print(f"\n{OUT_PATH} を生成しました ({len(found)}枚, 合計 {total / 1024:.0f} KB)")
+    print(f"\n{len(found)}枚を変換しました (合計 {total / 1024:.0f} KB)")
     print("次にファームウェアを書き込んでください。")
 
 

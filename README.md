@@ -114,17 +114,32 @@ ESP32の電源を入れ直しても自動で再接続します。
 ## ガチャロック連携(任意)
 
 友人([MaedaReno/gacha-machine](https://github.com/MaedaReno/gacha-machine))が作った、ESP32+サーボ+赤外線センサーで
-ガチャガチャのロックを解錠する装置と連携できる。ゲーム終了時(Game Over / ALL CLEAR問わず)の
-最終スコアが500点以上なら、`firmware/gacha_lock_ble` を書き込んだガチャ機ESP32にBLEで解錠コマンドを送る。
+ガチャガチャのロックを解錠する装置と連携できる。プレイ開始時に挑戦者が選んだ目標点数に
+到達してゲームが終わると、ガチャ機のESP32に解錠を指示する。
 
-- ガチャ機側: `firmware/gacha_lock_ble/gacha_lock_ble.ino` を書き込む(サーボ=GPIO26、赤外線センサー=GPIO25)。
-  BLEで「GachaLock」としてアドバタイズし、PCからの解錠コマンドを受けるとサーボが解錠、
-  赤外線センサーがカプセルの落下を検知すると自動で再施錠する
-- PC側: `pc_game/game_server.py` が起動時に自動で「GachaLock」を探して接続する(色記憶ゲームの
-  リモコンブリッジとは別のBLE接続として共存)。閾値は環境変数 `GACHA_UNLOCK_SCORE`(既定500)で変更可能
-- ガチャ機のESP32個体によってはBluetooth/WiFiの無線ハードウェア自体が故障している場合がある。
-  その場合は書き込み自体は成功し起動ログも正常に見えるが、電波が一切飛ばないため気づきにくい。
-  疑わしいときは最小構成のBLE広告テスト・WiFi APテストスケッチで電波が飛んでいるか単体確認するとよい
+**通信はWiFi(同じLAN)を使う。** リモコン側(ColorMemoryGame)はBLEのままで、こちらだけWiFi。
+
+- ガチャ機側: `firmware/gacha_lock_wifi/gacha_lock_wifi.ino` を書き込む
+  (サーボ=GPIO26、赤外線センサー=GPIO25)。
+  - `wifi_config.example.h` を `wifi_config.h` にコピーしてSSID/パスワードを記入する
+    (`wifi_config.h` は `.gitignore` 済み。**認証情報はコミットしないこと**)
+  - 画像入りだと標準のパーティションに収まらないので、書き込み時に
+    `--fqbn esp32:esp32:esp32:PartitionScheme=huge_app` を付ける
+  - mDNSで `gacha.local` を名乗るので、IPが変わっても設定変更は不要
+  - HTTPで `GET /status`(状態) `GET /unlock`(解錠) `GET /lock`(強制施錠) を受ける。
+    ブラウザで `http://gacha.local/` を開くと動作確認用のページも出る
+- PC側: `pc_game/game_server.py` が `gacha.local` を定期的に見に行く。
+  IPを直接指定したい場合は環境変数 `GACHA_HOST` で上書きできる
+
+### なぜBLEからWiFiに移行したか
+
+当初はBLE版(`firmware/gacha_lock_ble`、参考用に残置)だったが、電波が弱いと接続が
+頻繁に切れ、**「排出した」の通知を取りこぼして次の人に進めなくなる**問題が実イベントで発生した。
+WiFi + ポーリング方式にすることで、一時的に通信が途切れても次のポーリングで追いつける。
+さらに排出は**通算カウンタ**で数えているので、途中の1回を取りこぼしても差分で検知できる。
+
+設置時は管理パネル(右下の🛠)で**電波強度**と**切断した回数**を確認すること。
+電波が -70dBm より弱いと不安定になりやすい。
 
 ## リポジトリ構成
 
@@ -134,7 +149,8 @@ firmware/
 ├── color_memory_game_bt/     # 旧版: Bluetooth Classic (SPP)版(現行macOSでは接続が不安定)
 ├── color_memory_game_wifi/   # 旧構成: IR受信→WiFiブリッジ(WiFi環境がある場合の代替)
 ├── color_memory_game/        # 旧版: ESP32単体で完結する色記憶ゲーム(要WS2812配線・未解決)
-├── gacha_lock_ble/           # ガチャ機ロック(友人プロジェクト連携)のBLEファームウェア
+├── gacha_lock_wifi/          # ★ 現行版: ガチャ機ロック(WiFi + HTTP)
+├── gacha_lock_ble/           # 旧版: ガチャ機ロック(BLE)。画像の元データと変換スクリプトもここ
 ├── oled_i2c_scan/            # OLEDのI2Cピンを特定する診断ツール
 └── presence_light/           # 実験: 人感ライト構想のスケッチ
 pc_game/
