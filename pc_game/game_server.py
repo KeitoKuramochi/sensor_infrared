@@ -65,7 +65,9 @@ ACTIVE_BEATS_BY_STAGE = {1: 2, 2: 4, 3: 6, 4: 8, 5: 10}
 BEAT_INTERVAL_SEC = 0.7  # 1拍の長さ。テンポを変えたいときはここをいじる(小さいほど速い)
 EXCELLENT_WINDOW_SEC = 0.09
 OK_WINDOW_SEC = 0.22
-END_BUFFER_BEATS = 1  # 最後のアクティブビートの後、少し待ってからステージ終了とみなす
+END_BUFFER_BEATS = 1  # 保険用: 最後のアクティブビートの後、少し待ってからステージ終了とみなす
+# 全ノーツの判定が終わってからステージを終えるまでの猶予。最後の判定表示を見せるためだけの短い間。
+STAGE_END_GRACE_SEC = 0.45
 COUNT_IN_BEATS = 4  # ビート0が来るまでのカウントイン拍数(実際の拍と同じテンポでメトロノームを鳴らす)
 # ステージクリア後、ONを押させずに自動で次のステージへ進むまでの時間。
 # 画面側はこの間に「3・2・1」のカウントダウンと次のステージの予告を出す。
@@ -140,6 +142,8 @@ state = {
     "target_score": DEFAULT_TARGET_SCORE,
     # ステージクリア中、次のステージが自動で始まる時刻(画面のカウントダウン用)
     "next_stage_at": 0,
+    # そのステージの全ノーツを判定し終えた時刻(0なら未達)。すぐ切り上げる判断に使う
+    "all_judged_at": 0,
     # 練習モード(エンドレス)用。絶対ビート番号で管理する。
     #   start_time: ビート0が判定ゾーンに到着する時刻
     #   notes: {ビート番号: 色名} を必要な分だけ生成して保持
@@ -251,6 +255,7 @@ def last_active_index(pattern):
 
 
 def start_stage(stage_num: int):
+    state["all_judged_at"] = 0
     state["stage"] = stage_num
     state["pattern"] = generate_pattern(stage_num)
     state["stage_start_time"] = time.time() + INTRO_DELAY_SEC
@@ -637,11 +642,20 @@ def stage_ticker():
                     break
 
             if state["phase"] == "playing":
-                # 最後のアクティブビートの後は残りの空ビートを待たずに切り上げる
-                last_idx = last_active_index(state["pattern"])
-                total_duration = (last_idx + 1 + END_BUFFER_BEATS) * state["beat_interval"]
-                if now - state["stage_start_time"] >= total_duration:
-                    finish_stage()
+                # ★全部のノーツの判定が終わったら、残りの拍を待たずにすぐ終える。
+                # 「早すぎ」で押してしまった場合でも、そのノーツは判定済みなので
+                # 実際に流れてくるのを待たされない(待ち時間が長いという指摘への対応)。
+                if state["next_active_index"] is None:
+                    if state["all_judged_at"] == 0:
+                        state["all_judged_at"] = now
+                    elif now - state["all_judged_at"] >= STAGE_END_GRACE_SEC:
+                        finish_stage()
+                else:
+                    # まだ残っている場合の保険。時間切れなら切り上げる
+                    last_idx = last_active_index(state["pattern"])
+                    total_duration = (last_idx + 1 + END_BUFFER_BEATS) * state["beat_interval"]
+                    if now - state["stage_start_time"] >= total_duration:
+                        finish_stage()
 
 
 # 生成AIで作った画像を pc_game/static/img/ に置くと、ページ再読み込みだけで反映される。
