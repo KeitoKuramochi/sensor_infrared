@@ -67,6 +67,9 @@ EXCELLENT_WINDOW_SEC = 0.09
 OK_WINDOW_SEC = 0.22
 END_BUFFER_BEATS = 1  # 最後のアクティブビートの後、少し待ってからステージ終了とみなす
 COUNT_IN_BEATS = 4  # ビート0が来るまでのカウントイン拍数(実際の拍と同じテンポでメトロノームを鳴らす)
+# ステージクリア後、ONを押させずに自動で次のステージへ進むまでの時間。
+# 画面側はこの間に「3・2・1」のカウントダウンと次のステージの予告を出す。
+STAGE_CLEAR_COUNTDOWN_SEC = 4.0
 INTRO_SHOW_SEC = 1.5  # 「Stage N」の黒幕を表示する時間。幕が上がってからカウントインが始まる
 INTRO_DELAY_SEC = INTRO_SHOW_SEC + COUNT_IN_BEATS * BEAT_INTERVAL_SEC
 
@@ -135,6 +138,8 @@ state = {
     "last_action": time.time(),
     # 挑戦者が選んだ目標点数。この点数以上でゲームが終わるとガチャが解錠される。
     "target_score": DEFAULT_TARGET_SCORE,
+    # ステージクリア中、次のステージが自動で始まる時刻(画面のカウントダウン用)
+    "next_stage_at": 0,
     # 練習モード(エンドレス)用。絶対ビート番号で管理する。
     #   start_time: ビート0が判定ゾーンに到着する時刻
     #   notes: {ビート番号: 色名} を必要な分だけ生成して保持
@@ -475,6 +480,8 @@ def finish_stage():
         state["best_stage"] = max(state["best_stage"], state["stage"])
         state["phase"] = "stage_clear"
         state["message"] = f"Stage {state['stage']} Clear!"
+        # ONを押させずに自動で次のステージへ進む。画面はこの時刻までカウントダウンを出す
+        state["next_stage_at"] = time.time() + STAGE_CLEAR_COUNTDOWN_SEC
     state["last_action"] = time.time()
 
 
@@ -545,10 +552,14 @@ def handle_button(name: str):
             # 詰まって進めない場合は OFF で手動リセットできる。
             if state["gacha"]["awaiting"] or state["gacha"]["status"] == "pending":
                 return
-            # プレイ前に必ず目標点数を選ばせる
-            if state["phase"] in ("idle", "game_over", "all_clear", "practice"):
+            # 結果画面からは目標選択に直行せず、いったんトップ(待機)に戻す。
+            # 「もう一度」で目標を選び直すか、次の人が最初から始めるための入口にする。
+            if state["phase"] in ("game_over", "all_clear"):
+                go_idle()
+            elif state["phase"] in ("idle", "practice"):
                 go_target_select()
             elif state["phase"] == "stage_clear":
+                # カウントダウンを待たずに次へ進めたいとき用
                 start_stage(state["stage"] + 1)
             return
 
@@ -584,6 +595,12 @@ def stage_ticker():
     while True:
         time.sleep(0.02)
         with lock:
+            # ステージクリアのカウントダウンが終わったら自動で次のステージへ
+            if state["phase"] == "stage_clear":
+                if time.time() >= state["next_stage_at"]:
+                    start_stage(state["stage"] + 1)
+                continue
+
             if state["phase"] == "practice":
                 p = state["practice"]
                 if p is not None:
@@ -670,6 +687,8 @@ def index():
         count_in_beats=COUNT_IN_BEATS,
         target_presets=presets,
         stage_benchmarks=STAGE_BENCHMARKS,
+        # ステージごとのノーツ数。クリア後の予告(「次は○個流れてくるよ」)に使う
+        active_beats_by_stage=ACTIVE_BEATS_BY_STAGE,
         art=find_art(),
     )
 

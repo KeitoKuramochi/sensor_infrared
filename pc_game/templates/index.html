@@ -552,7 +552,19 @@
   .ad-result.ok { color: #4ade80; }
   .ad-result.ng { color: var(--red); }
 
-  #message { font-size: 15.5px; min-height: 22px; color: #c6ccd8; text-align: center; letter-spacing: 0.02em; }
+  #message { font-size: 15.5px; min-height: 22px; color: #c6ccd8; text-align: center; letter-spacing: 0.02em; line-height: 1.7; }
+  /* ステージクリア後の自動カウントダウン */
+  #message .cd-num {
+    display: inline-block;
+    min-width: 1.5em;
+    font-size: 26px;
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 0 0 16px rgba(255, 214, 10, 0.5);
+    vertical-align: -3px;
+  }
+  #message .cd-next { font-size: 13px; color: var(--text-2); }
+  #message .cd-next b { color: var(--cyan); font-size: 15px; }
   #best { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 
   /* --- 判定ポップ+コンボ --- */
@@ -1004,6 +1016,7 @@ const COLOR_HEX = {
 };
 const ART = {{ art | tojson }};
 const TARGET_PRESETS = {{ target_presets | tojson }};
+const ACTIVE_BEATS_BY_STAGE = {{ active_beats_by_stage | tojson }};
 const resultArtEl = document.getElementById('resultArt');
 const targetSelectEl = document.getElementById('targetSelect');
 const targetChipEl = document.getElementById('targetChip');
@@ -1099,6 +1112,25 @@ function playGameOver() {
   [300, 220, 160].forEach((f, i) => setTimeout(() => beep(f, 0.3, 'sawtooth', 0.2), i * 140));
 }
 function playStart() { beep(660, 0.12, 'sine', 0.15); }
+// ONを押して目標選択に入ったときの音(押した実感が出るように2音重ねる)
+function playEnter() {
+  beep(523, 0.10, 'triangle', 0.20);
+  setTimeout(() => beep(784, 0.14, 'triangle', 0.20), 90);
+}
+// 目標選択のハイライトが巡回するのに合わせて、難易度が上がるほど高い音にする
+function playTargetTick(idx, total) {
+  // ドレミファソ(全音階)で段階的に上がっていく
+  const scale = [523, 587, 659, 784, 880];
+  beep(scale[Math.min(idx, scale.length - 1)], 0.09, 'triangle', 0.16);
+}
+// 目標を選んで決定したときの音
+function playTargetPick() {
+  [659, 880, 1046].forEach((f, i) => setTimeout(() => beep(f, 0.12, 'triangle', 0.2), i * 70));
+}
+// ステージクリア後のカウントダウン(3・2・1)の音。最後だけ高くする
+function playCountdownTick(n) {
+  beep(n <= 1 ? 880 : 520, n <= 1 ? 0.16 : 0.09, 'square', 0.14);
+}
 // スコアのカウントアップに合わせて短い音を刻む(集計している感じを出す)
 function playCountUp() {
   for (let i = 0; i < 14; i++) {
@@ -1323,6 +1355,7 @@ function gachaSuffix(gacha) {
 // ハイライトして対応を示す。
 let tsCycleIdx = 0;
 let tsCycleTimer = null;
+let lastCountdown = null;   // ステージクリアのカウントダウンで音を1回だけ鳴らすため
 const tsRowEls = () => Array.from(document.querySelectorAll('#targetSelect .ts-row'));
 
 function tsCycleStep() {
@@ -1331,6 +1364,7 @@ function tsCycleStep() {
   tsCycleIdx = tsCycleIdx % TARGET_PRESETS.length;
   rows.forEach((r, i) => r.classList.toggle('ts-active', i === tsCycleIdx));
   highlight(TARGET_PRESETS[tsCycleIdx].key);
+  playTargetTick(tsCycleIdx, TARGET_PRESETS.length);  // 難易度が上がるほど高い音
   tsCycleIdx++;
 }
 
@@ -1542,6 +1576,12 @@ function render(state) {
   }
   // ゲーム終了時の音は結果発表の演出側で鳴らす(発表の瞬間に合わせるため)
   if (state.phase === 'stage_clear' && prev.phase === 'playing') playStageClear();
+  // ONを押して目標選択に入った瞬間(押した手応えが無かったので音を付けた)
+  if (state.phase === 'target_select' && prev.phase !== 'target_select') playEnter();
+  // 目標を選んでプレイに入った瞬間
+  if (state.phase === 'playing' && prev.phase === 'target_select') playTargetPick();
+  // ステージクリアから抜けたらカウントダウンの音の記録をリセット
+  if (state.phase !== 'stage_clear') lastCountdown = null;
   if (state.phase === 'playing' && prev.phase !== 'playing' && prev.phase !== null && state.stage === 1) playStart();
   // HUDのチップは場面によって出し分ける。
   // 練習モードは終わりが無くライフも減らないので、STAGE/LIFE/TARGET は隠して「練習」だけ出す。
@@ -1603,8 +1643,20 @@ function render(state) {
     }
   } else if (state.phase === 'stage_clear') {
     stopConveyor();
-    highlight('ON');
-    messageEl.textContent = state.message + ' — ONボタンで次へ';
+    highlight(null);
+    // 自動で次のステージへ進むので、残り時間のカウントダウンと次の予告を出す
+    const nextStage = state.stage + 1;
+    const nextCount = ACTIVE_BEATS_BY_STAGE[nextStage];
+    const left = Math.max(0, (state.next_stage_at || 0) - Date.now() / 1000);
+    const n = Math.ceil(left);
+    if (n !== lastCountdown) {
+      lastCountdown = n;
+      if (n >= 1 && n <= 3) playCountdownTick(n);
+    }
+    const num = (n >= 1 && n <= 3) ? `${n}` : '';
+    messageEl.innerHTML = `${state.message}`
+      + (num ? `　<b class="cd-num">${num}</b>` : '')
+      + (nextCount ? `<br><span class="cd-next">つぎは ステージ${nextStage} — ノーツが <b>${nextCount}個</b> 流れてくるよ</span>` : '');
   } else if (state.phase === 'game_over' || state.phase === 'all_clear') {
     currentStageKey = null;
     stopConveyor();
