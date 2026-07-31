@@ -95,6 +95,11 @@ TARGET_PRESETS = [
 STAGE_BENCHMARKS = [69, 243, 594, 1230, 2295]
 DEFAULT_TARGET_SCORE = 500
 
+# 結果発表の演出が終わってから解錠したい(先に開いてしまうと盛り上がらない)。
+# 画面側の演出タイムライン(スコアのカウントアップ→判定中の溜め→達成の発表)の
+# 尺に合わせてある。演出を変えるときは templates/index.html 側と一緒に調整する。
+GACHA_UNLOCK_DELAY_SEC = 4.2
+
 # --- ガチャロック解除 (友人(MaedaReno)制作の gacha-machine プロジェクトとの連携) ---
 # ガチャ機側のESP32には firmware/gacha_lock_ble を書き込む。BLEで「GachaLock」として
 # アドバタイズし、コマンド用キャラクタリスティックに "UNLOCK" を書き込むとサーボ錠を解錠する。
@@ -357,6 +362,8 @@ def send_gacha_command(cmd: str):
 
 def _request_gacha_unlock():
     """ゲームクリア時の解錠(別スレッドで実行、失敗してもゲームは止めない)。"""
+    # 画面の結果発表の演出が終わるのを待ってから解錠する(先に開くと盛り上がらない)
+    time.sleep(GACHA_UNLOCK_DELAY_SEC)
     ok, detail = send_gacha_command("UNLOCK")
     with lock:
         g = state["gacha"]

@@ -390,6 +390,57 @@
   .rp-msg { font-size: 14px; color: var(--text); text-align: center; }
   .rp-msg b { color: var(--gold); }
 
+  /* 判定中の「溜め」。点が順番に光る */
+  .rp-judging {
+    display: none;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--cyan);
+  }
+  .rp-judging.show { display: block; }
+  .rp-judging i { font-style: normal; animation: rpDot 1.2s infinite; }
+  .rp-judging i:nth-child(2) { animation-delay: 0.2s; }
+  .rp-judging i:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes rpDot { 0%, 60%, 100% { opacity: 0.2; } 30% { opacity: 1; } }
+
+  /* 達成/未達の大きな発表 */
+  .rp-big {
+    display: none;
+    font-size: 34px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    line-height: 1.15;
+    text-align: center;
+  }
+  .rp-big.show { display: block; animation: rpBigIn 620ms cubic-bezier(0.16, 1, 0.3, 1.4); }
+  .rp-big.win {
+    background: linear-gradient(95deg, var(--gold), #ff9d5c 40%, var(--cyan));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    filter: drop-shadow(0 3px 16px rgba(255, 214, 10, 0.35));
+  }
+  .rp-big.lose { color: var(--text-2); font-size: 27px; }
+  @keyframes rpBigIn {
+    0%   { transform: scale(0.55) rotate(-4deg); opacity: 0; }
+    55%  { transform: scale(1.14) rotate(1deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+
+  /* 達成時は結果パネル自体を金色に光らせる */
+  #resultPanel.celebrate {
+    border-color: rgba(255, 214, 10, 0.55);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45), 0 0 40px rgba(255, 214, 10, 0.28),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    animation: rpCelebrate 900ms ease-out;
+  }
+  @keyframes rpCelebrate {
+    0%   { transform: scale(0.97); }
+    40%  { transform: scale(1.02); }
+    100% { transform: scale(1); }
+  }
+
   /* ガチャ進行の段階表示。todo=これから / now=進行中 / done=完了 */
   .rp-steps { display: none; width: 100%; justify-content: space-between; gap: 4px; margin-top: 2px; }
   .rp-steps.show { display: flex; }
@@ -831,6 +882,9 @@
       <div class="rp-arrow" id="rpVerdict">—</div>
       <div class="rp-score"><i>目標</i><b id="rpTarget">0</b></div>
     </div>
+    <!-- 判定中の「溜め」と、達成/未達の大きな発表 -->
+    <div class="rp-judging" id="rpJudging">判定中<i>.</i><i>.</i><i>.</i></div>
+    <div class="rp-big" id="rpBig"></div>
     <div class="rp-msg" id="rpMsg"></div>
     <!-- ガチャの進行(解除→回す→出た→再施錠)を段階表示する -->
     <div class="rp-steps" id="rpSteps">
@@ -961,6 +1015,8 @@ const rpScoreEl = document.getElementById('rpScore');
 const rpTargetEl = document.getElementById('rpTarget');
 const rpVerdictEl = document.getElementById('rpVerdict');
 const rpMsgEl = document.getElementById('rpMsg');
+const rpJudgingEl = document.getElementById('rpJudging');
+const rpBigEl = document.getElementById('rpBig');
 const rpStepsEl = document.getElementById('rpSteps');
 const rpFootEl = document.getElementById('rpFoot');
 const rankingListEl = document.getElementById('rankingList');
@@ -1041,6 +1097,12 @@ function playGameOver() {
   [300, 220, 160].forEach((f, i) => setTimeout(() => beep(f, 0.3, 'sawtooth', 0.2), i * 140));
 }
 function playStart() { beep(660, 0.12, 'sine', 0.15); }
+// スコアのカウントアップに合わせて短い音を刻む(集計している感じを出す)
+function playCountUp() {
+  for (let i = 0; i < 14; i++) {
+    setTimeout(() => beep(900 + i * 45, 0.03, 'square', 0.05), i * 100);
+  }
+}
 
 unlockEl.addEventListener('click', () => {
   ensureAudio();
@@ -1293,17 +1355,104 @@ function setSteps(map) {
   });
 }
 
-function renderResult(state) {
-  const g = state.gacha || {};
+// --- 結果発表の演出 ---
+// 出た瞬間に全部見せてしまうとあっけないので、スコアのカウントアップ →「判定中」の溜め →
+// 達成/未達の発表、という順に時間をかけて見せる。ガチャの解錠信号もこの演出が終わる
+// タイミングに合わせてサーバー側で遅らせている(GACHA_UNLOCK_DELAY_SEC)。
+const resultSeq = { key: null, done: false, timers: [] };
+
+function clearResultSeq() {
+  resultSeq.timers.forEach(clearTimeout);
+  resultSeq.timers = [];
+  resultSeq.key = null;
+  resultSeq.done = false;
+  rpJudgingEl.classList.remove('show');
+  rpBigEl.classList.remove('show', 'win', 'lose');
+  resultPanelEl.classList.remove('celebrate');
+}
+
+function later(ms, fn) { resultSeq.timers.push(setTimeout(fn, ms)); }
+
+// 数字をなめらかに増やす
+function countUp(el, to, ms) {
+  const t0 = performance.now();
+  function step(now) {
+    const p = Math.min(1, (now - t0) / ms);
+    // 終盤ゆっくり止まる
+    const eased = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(to * eased);
+    if (p < 1) requestAnimationFrame(step);
+    else el.textContent = to;
+  }
+  requestAnimationFrame(step);
+}
+
+function startResultSequence(state) {
   const reached = state.score >= state.target_score;
   const short = state.target_score - state.score;
 
   rpHeadEl.textContent = state.phase === 'all_clear' ? 'ALL CLEAR!' : 'GAME OVER';
   rpHeadEl.className = 'rp-head ' + (reached ? 'win' : 'lose');
-  rpScoreEl.textContent = state.score;
   rpTargetEl.textContent = state.target_score;
-  rpVerdictEl.textContent = reached ? '≥' : '<';
-  rpVerdictEl.className = 'rp-arrow ' + (reached ? 'win' : 'lose');
+  rpScoreEl.textContent = '0';
+  rpVerdictEl.textContent = '…';
+  rpVerdictEl.className = 'rp-arrow';
+  rpMsgEl.textContent = '';
+  rpFootEl.textContent = '';
+  rpFootEl.className = 'rp-foot';
+  rpStepsEl.classList.remove('show');
+  showResultArt(null);
+
+  // ① スコアをカウントアップ(1.4秒)
+  later(250, () => {
+    countUp(rpScoreEl, state.score, 1400);
+    playCountUp();
+  });
+
+  // ② 「判定中...」で溜める
+  later(1800, () => rpJudgingEl.classList.add('show'));
+
+  // ③ 目標と比べて発表
+  later(3100, () => {
+    rpJudgingEl.classList.remove('show');
+    rpVerdictEl.textContent = reached ? '≥' : '<';
+    rpVerdictEl.className = 'rp-arrow ' + (reached ? 'win' : 'lose');
+    rpBigEl.textContent = reached ? '目標たっせい!' : 'とどかなかった…';
+    rpBigEl.className = 'rp-big show ' + (reached ? 'win' : 'lose');
+    if (reached) {
+      resultPanelEl.classList.add('celebrate');
+      popBurst();
+      flashWhite(3);
+      playAllClear();
+      showResultArt(state.phase === 'all_clear' ? 'allclear' : 'stageclear');
+    } else {
+      playGameOver();
+      showResultArt('gameover');
+    }
+  });
+
+  // ④ 演出が終わったら通常表示(ガチャの進行など)に引き継ぐ
+  later(4200, () => {
+    resultSeq.done = true;
+    if (reached) rpMsgEl.innerHTML = '<b>ガチャのロックを解除します</b>';
+    else rpMsgEl.innerHTML = `目標まで <b>あと${short}点</b>でした`;
+  });
+}
+
+function renderResult(state) {
+  const g = state.gacha || {};
+  const reached = state.score >= state.target_score;
+  const short = state.target_score - state.score;
+
+  // 同じゲームの結果なら演出は1回だけ走らせる
+  const key = `${state.phase}:${state.score}:${state.target_score}`;
+  if (resultSeq.key !== key) {
+    clearResultSeq();
+    resultSeq.key = key;
+    startResultSequence(state);
+  }
+  // 演出中は下の通常表示で上書きしない
+  if (!resultSeq.done) return;
 
   rpStepsEl.classList.toggle('show', reached);
   rpFootEl.className = 'rp-foot';
@@ -1314,7 +1463,8 @@ function renderResult(state) {
     return;
   }
 
-  rpMsgEl.innerHTML = '目標たっせい! <b>ガチャのロックを解除します</b>';
+  // 「目標たっせい!」は上の大発表で出しているので、ここでは繰り返さない
+  rpMsgEl.innerHTML = '<b>ガチャのロックを解除します</b>';
 
   if (g.status === 'pending') {
     setSteps({ unlock: 'now' });
@@ -1362,9 +1512,10 @@ function render(state) {
   stageEl.textContent = state.stage;
   scoreEl.textContent = state.score;
   renderRanking(state.ranking || [], state.ranking_last_id);
-  showResultArt(state.phase === 'game_over' ? 'gameover'
-                : state.phase === 'all_clear' ? 'allclear'
-                : state.phase === 'stage_clear' ? 'stageclear' : null);
+  // ゲーム終了時のスタンプ表示は結果発表の演出側で出す(発表の瞬間に合わせるため)。
+  // ここではステージクリアのときだけ即出しする。
+  if (state.phase === 'stage_clear') showResultArt('stageclear');
+  else if (state.phase !== 'game_over' && state.phase !== 'all_clear') showResultArt(null);
   bestEl.textContent = (state.best_stage > 0)
     ? `Best Stage: ${state.best_stage}/${TOTAL_STAGES} / Best Score: ${state.best_score}`
     : '';
@@ -1387,8 +1538,7 @@ function render(state) {
     else if (state.last_judgment === 'OK') { popJudgment('OK', 'ok'); playOk(); }
     else { popJudgment(state.last_judgment, 'fail'); playFail(); }
   }
-  if (state.phase === 'game_over' && prev.phase !== 'game_over') playGameOver();
-  if (state.phase === 'all_clear' && prev.phase !== 'all_clear') playAllClear();
+  // ゲーム終了時の音は結果発表の演出側で鳴らす(発表の瞬間に合わせるため)
   if (state.phase === 'stage_clear' && prev.phase === 'playing') playStageClear();
   if (state.phase === 'playing' && prev.phase !== 'playing' && prev.phase !== null && state.stage === 1) playStart();
   // HUDのチップは場面によって出し分ける。
@@ -1406,6 +1556,8 @@ function render(state) {
   targetSelectEl.classList.toggle('show', selecting);
   resultPanelEl.classList.toggle('show', finished);
   document.body.classList.toggle('finished', finished);
+  // 結果画面から離れたら演出をリセットして、次のゲームでまた頭から流れるようにする
+  if (!finished) clearResultSeq();
   // 目標選択中はレーンを隠してリモコンを画面内に収める(縦に長くなって切れるのを防ぐ)
   document.body.classList.toggle('selecting', selecting);
   if (!selecting) stopTargetCycle();
