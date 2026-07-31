@@ -575,8 +575,22 @@
     color: var(--gold);
     text-shadow: 0 0 24px rgba(255, 214, 10, 0.45);
   }
-  .co-num {
-    font-size: 128px;
+  .co-next { font-size: 17px; color: var(--text); letter-spacing: 0.02em; }
+  .co-next b { color: var(--cyan); font-size: 22px; }
+
+  /* --- カウントインの3・2・1 --- */
+  /* ノーツが右から近づいてくるのを隠さないよう、背景は暗くせず数字だけを重ねる */
+  /* リモコンやノーツのレーンに重ならないよう、画面の左側に寄せて出す
+     (カウントイン中はボタンを構える瞬間なので、リモコンを隠してはいけない) */
+  #countInNum {
+    position: fixed;
+    left: 4vw;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 25;
+    display: none;
+    pointer-events: none;
+    font-size: 130px;
     font-weight: 900;
     line-height: 1;
     font-variant-numeric: tabular-nums;
@@ -584,17 +598,20 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    filter: drop-shadow(0 6px 24px rgba(0, 0, 0, 0.6));
-    min-height: 128px;
+    filter: drop-shadow(0 6px 26px rgba(0, 0, 0, 0.85));
   }
-  .co-num.tick { animation: coTick 480ms cubic-bezier(0.16, 1, 0.3, 1.3); }
-  @keyframes coTick {
-    0%   { transform: scale(1.7); opacity: 0.15; }
-    60%  { transform: scale(1); opacity: 1; }
-    100% { transform: scale(1); opacity: 1; }
+  #countInNum.show { display: block; }
+  /* 左に「あそびかた」パネルが出ている広い画面では、その分だけ内側にずらす */
+  @media (min-width: 1241px) {
+    #countInNum { left: 22vw; }
   }
-  .co-next { font-size: 17px; color: var(--text); letter-spacing: 0.02em; }
-  .co-next b { color: var(--cyan); font-size: 22px; }
+  #countInNum.tick { animation: ciTick 620ms cubic-bezier(0.16, 1, 0.3, 1.2); }
+  /* 位置合わせの translateY(-50%) を打ち消さないよう、拡大と一緒に指定する */
+  @keyframes ciTick {
+    0%   { transform: translateY(-50%) scale(1.8); opacity: 0; }
+    35%  { transform: translateY(-50%) scale(1); opacity: 0.95; }
+    100% { transform: translateY(-50%) scale(0.94); opacity: 0; }
+  }
 
   #message { font-size: 15.5px; min-height: 22px; color: #c6ccd8; text-align: center; letter-spacing: 0.02em; line-height: 1.7; }
   #best { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
@@ -977,14 +994,17 @@
     <div id="introBar"></div>
   </div>
 
-  <!-- ステージクリア後のカウントダウン。画面中央に大きく出す
+  <!-- ステージクリアの表示。画面中央に大きく出す
        (画面下のメッセージ欄はウィンドウが低いと見切れる上、
         ノーツを見ている視線からは気づけないため) -->
   <div id="clearOverlay">
     <div class="co-head" id="coHead">STAGE CLEAR!</div>
-    <div class="co-num" id="coNum"></div>
     <div class="co-next" id="coNext"></div>
   </div>
+
+  <!-- カウントインの「3・2・1」。ノーツが近づいてくるのを隠さないよう、
+       背景は暗くせず数字だけを薄く重ねる。これがそのままノーツ開始につながる -->
+  <div id="countInNum"></div>
 
   <!-- 管理者パネル: 右下に常駐。もしもの時に手動で信号を送るための逃げ道 -->
   <details id="admin">
@@ -1075,7 +1095,7 @@ const rpJudgingEl = document.getElementById('rpJudging');
 const rpBigEl = document.getElementById('rpBig');
 const clearOverlayEl = document.getElementById('clearOverlay');
 const coHeadEl = document.getElementById('coHead');
-const coNumEl = document.getElementById('coNum');
+const countInNumEl = document.getElementById('countInNum');
 const coNextEl = document.getElementById('coNext');
 const rpStepsEl = document.getElementById('rpSteps');
 const rpFootEl = document.getElementById('rpFoot');
@@ -1171,10 +1191,6 @@ function playTargetTick(idx, total) {
 // 目標を選んで決定したときの音
 function playTargetPick() {
   [659, 880, 1046].forEach((f, i) => setTimeout(() => beep(f, 0.12, 'triangle', 0.2), i * 70));
-}
-// ステージクリア後のカウントダウン(3・2・1)の音。最後だけ高くする
-function playCountdownTick(n) {
-  beep(n <= 1 ? 880 : 520, n <= 1 ? 0.16 : 0.09, 'square', 0.14);
 }
 // スコアのカウントアップに合わせて短い音を刻む(集計している感じを出す)
 function playCountUp() {
@@ -1274,12 +1290,36 @@ let countInTimers = [];
 function scheduleCountIn(startPerf) {
   countInTimers.forEach(t => clearTimeout(t));
   countInTimers = [];
+  // i拍前 = 表示する数字。COUNT_IN_BEATS=3 なら 3 → 2 → 1 と出て、そのままノーツに入る。
+  // (以前はステージクリア側でも3・2・1を出していたため二重に数えて見えていた)
   for (let i = COUNT_IN_BEATS; i >= 1; i--) {
     const delay = (startPerf - i * BEAT_INTERVAL_MS) - performance.now();
     if (delay > 0) {
-      countInTimers.push(setTimeout(() => { playChi(); pulseZone(); }, delay));
+      countInTimers.push(setTimeout(() => {
+        playChi();
+        pulseZone();
+        showCountInNum(i);
+      }, delay));
     }
   }
+  // 最後の数字が消えきる頃に片付ける
+  const clearDelay = startPerf - performance.now() + 200;
+  if (clearDelay > 0) {
+    countInTimers.push(setTimeout(hideCountInNum, clearDelay));
+  }
+}
+
+function showCountInNum(n) {
+  countInNumEl.textContent = n;
+  countInNumEl.classList.add('show');
+  countInNumEl.classList.remove('tick');
+  void countInNumEl.offsetWidth;   // reflow でアニメーションを再トリガー
+  countInNumEl.classList.add('tick');
+}
+
+function hideCountInNum() {
+  countInNumEl.classList.remove('show', 'tick');
+  countInNumEl.textContent = '';
 }
 
 function stopConveyor() {
@@ -1400,7 +1440,6 @@ function gachaSuffix(gacha) {
 // ハイライトして対応を示す。
 let tsCycleIdx = 0;
 let tsCycleTimer = null;
-let lastCountdown = null;   // ステージクリアのカウントダウンで音を1回だけ鳴らすため
 const tsRowEls = () => Array.from(document.querySelectorAll('#targetSelect .ts-row'));
 
 function tsCycleStep() {
@@ -1627,9 +1666,7 @@ function render(state) {
   if (state.phase === 'playing' && prev.phase === 'target_select') playTargetPick();
   // ステージクリアから抜けたらカウントダウンを片付ける
   if (state.phase !== 'stage_clear') {
-    lastCountdown = null;
     clearOverlayEl.classList.remove('show');
-    coNumEl.textContent = '';
   }
   if (state.phase === 'playing' && prev.phase !== 'playing' && prev.phase !== null && state.stage === 1) playStart();
   // HUDのチップは場面によって出し分ける。
@@ -1699,21 +1736,13 @@ function render(state) {
     const left = Math.max(0, (state.next_stage_at || 0) - Date.now() / 1000);
     const n = Math.ceil(left);
 
+    // ここでは数字を出さない。カウントダウン(3・2・1)はこの後のカウントインで
+    // 拍に合わせて出すので、二重に数えないようにしている
     clearOverlayEl.classList.add('show');
     coHeadEl.textContent = `STAGE ${state.stage} CLEAR!`;
     coNextEl.innerHTML = nextCount
       ? `つぎは ステージ${nextStage} — ノーツが <b>${nextCount}個</b> 流れてくるよ`
       : '';
-    if (n !== lastCountdown) {
-      lastCountdown = n;
-      if (n >= 1 && n <= 3) {
-        coNumEl.textContent = n;
-        coNumEl.classList.remove('tick');
-        void coNumEl.offsetWidth;   // reflow でアニメーションを再トリガー
-        coNumEl.classList.add('tick');
-        playCountdownTick(n);
-      }
-    }
     messageEl.textContent = '';
   } else if (state.phase === 'game_over' || state.phase === 'all_clear') {
     currentStageKey = null;
