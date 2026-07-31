@@ -59,6 +59,12 @@
 const int ANGLE_LOCK = 180;   // 施錠位置
 const int ANGLE_FREE = 0;     // 解錠位置
 
+// ---------------- 排出検知から施錠までの遅延 (★実機で要調整) ----------------
+//  カプセルが落ちた瞬間に施錠すると、回転盤のポケットがまだ開いた位置で止まってしまい、
+//  機構が中途半端なところで引っかかる。少し待って回転盤が良い位置まで進んでから
+//  爪を落とすことで、きれいに止まる。長すぎると2個目が出るおそれがあるので注意。
+const uint32_t LOCK_DELAY_MS = 200;
+
 // ---------------- 赤外線センサーの極性 ----------------
 //  多くの LM393 障害物センサーは「物体を検知すると D0 が LOW」になる。
 //  もし逆(検知でHIGH)なら false にする。
@@ -94,12 +100,14 @@ volatile bool bleLockReq = false;    // 管理画面からの強制施錠
 volatile bool bleStatusReq = false;  // 管理画面からの状態問い合わせ
 
 // ---------------- 状態 ----------------
-// ST_THANKS: カプセルを検知して再施錠した直後、「ありがとう」を数秒見せている状態。
-// (サーボはこの時点で既に施錠済みなので、表示だけの猶予時間)
+// ST_THANKS: カプセルを検知して「ありがとう」を見せている状態。
+// この状態に入った直後はまだ解錠のままで、LOCK_DELAY_MS 経過してから施錠する
+// (回転盤が良い位置まで進んでから爪を落とすため)。
 enum State { ST_LOCKED, ST_UNLOCKED, ST_THANKS };
 State state = ST_LOCKED;
 bool  armed = false;    // 解錠後、センサーがクリアになってから検知を有効化するフラグ
 uint32_t thanksSince = 0;
+bool  servoLockedInThanks = false;  // ST_THANKS中に施錠まで済んだか
 const uint32_t THANKS_MS = 3000;   // 「ありがとう」を表示する時間
 
 // ---------------- BLE通知 ----------------
@@ -223,14 +231,16 @@ void unlockNow() {
   notifyStatus("UNLOCKED");
 }
 
-// カプセル検知時。2個目が出ないよう先にサーボを施錠し、お礼画面を数秒見せる。
+// カプセル検知時。すぐには施錠せず、回転盤が良い位置まで進むのを LOCK_DELAY_MS だけ待つ
+// (落ちた瞬間に爪を落とすと、ポケットが開いた位置で止まって機構が引っかかる)。
+// 実際の施錠は loop の ST_THANKS 処理で行う。
 void thanksThenLock() {
-  lockServo.write(ANGLE_LOCK);
   armed = false;
   drawThanks();
   state = ST_THANKS;
   thanksSince = millis();
-  Serial.println("[STATE] THANKS (施錠済み、お礼を表示中)");
+  servoLockedInThanks = false;
+  Serial.printf("[STATE] THANKS (%lums後に施錠します)\n", LOCK_DELAY_MS);
   notifyStatus("DISPENSED");
 }
 
@@ -321,8 +331,15 @@ void loop() {
     }
 
   } else if (state == ST_THANKS) {
-    // お礼を数秒見せたらロック中の表示に戻す(サーボは既に施錠済み)
-    if (millis() - thanksSince > THANKS_MS) {
+    const uint32_t elapsed = millis() - thanksSince;
+    // まず、回転盤が良い位置まで進むのを待ってから施錠する
+    if (!servoLockedInThanks && elapsed >= LOCK_DELAY_MS) {
+      lockServo.write(ANGLE_LOCK);
+      servoLockedInThanks = true;
+      Serial.println("[SERVO] 施錠しました");
+    }
+    // お礼を見せ終わったらロック中の表示に戻す
+    if (elapsed > THANKS_MS) {
       lockNow();
     }
 
@@ -335,11 +352,12 @@ void loop() {
         Serial.println("[IR] 監視開始 (カプセル落下を待機)");
       }
     } else {
-      // 有効化後、物体を検知したらカプセルが落ちたとみなして再施錠
+      // 有効化後、物体を検知したらカプセルが落ちたとみなす
+      // (施錠は LOCK_DELAY_MS 待ってから ST_THANKS 側で行う。ここで delay を入れると
+      //  その分だけ施錠が遅れてしまうので待たない)
       if (irDetected()) {
-        Serial.println("[IR] カプセル検知! -> 再施錠");
+        Serial.println("[IR] カプセル検知!");
         thanksThenLock();
-        delay(300);
       }
     }
   }
