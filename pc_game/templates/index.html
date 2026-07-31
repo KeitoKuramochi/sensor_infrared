@@ -575,9 +575,6 @@
     color: var(--gold);
     text-shadow: 0 0 24px rgba(255, 214, 10, 0.45);
   }
-  .co-next { font-size: 17px; color: var(--text); letter-spacing: 0.02em; }
-  .co-next b { color: var(--cyan); font-size: 22px; }
-
   /* --- カウントインの3・2・1 --- */
   /* ノーツが右から近づいてくるのを隠さないよう、背景は暗くせず数字だけを重ねる */
   /* リモコンやノーツのレーンに重ならないよう、画面の左側に寄せて出す
@@ -600,12 +597,14 @@
     color: transparent;
     filter: drop-shadow(0 6px 26px rgba(0, 0, 0, 0.85));
   }
-  #countInNum.show { display: block; }
+  /* forwards が無いとアニメーション終了後に元の表示状態(不透明)へ戻ってしまい、
+     消えたはずの数字がもう一度現れる(「3,2,1,1」に見えていた原因) */
+  #countInNum.show { display: block; opacity: 0; }
   /* 左に「あそびかた」パネルが出ている広い画面では、その分だけ内側にずらす */
   @media (min-width: 1241px) {
     #countInNum { left: 22vw; }
   }
-  #countInNum.tick { animation: ciTick 620ms cubic-bezier(0.16, 1, 0.3, 1.2); }
+  #countInNum.tick { animation: ciTick 620ms cubic-bezier(0.16, 1, 0.3, 1.2) forwards; }
   /* 位置合わせの translateY(-50%) を打ち消さないよう、拡大と一緒に指定する */
   @keyframes ciTick {
     0%   { transform: translateY(-50%) scale(1.8); opacity: 0; }
@@ -999,7 +998,6 @@
         ノーツを見ている視線からは気づけないため) -->
   <div id="clearOverlay">
     <div class="co-head" id="coHead">STAGE CLEAR!</div>
-    <div class="co-next" id="coNext"></div>
   </div>
 
   <!-- カウントインの「3・2・1」。ノーツが近づいてくるのを隠さないよう、
@@ -1077,7 +1075,6 @@ const COLOR_HEX = {
 };
 const ART = {{ art | tojson }};
 const TARGET_PRESETS = {{ target_presets | tojson }};
-const ACTIVE_BEATS_BY_STAGE = {{ active_beats_by_stage | tojson }};
 const resultArtEl = document.getElementById('resultArt');
 const targetSelectEl = document.getElementById('targetSelect');
 const targetChipEl = document.getElementById('targetChip');
@@ -1096,7 +1093,6 @@ const rpBigEl = document.getElementById('rpBig');
 const clearOverlayEl = document.getElementById('clearOverlay');
 const coHeadEl = document.getElementById('coHead');
 const countInNumEl = document.getElementById('countInNum');
-const coNextEl = document.getElementById('coNext');
 const rpStepsEl = document.getElementById('rpSteps');
 const rpFootEl = document.getElementById('rpFoot');
 const rankingListEl = document.getElementById('rankingList');
@@ -1730,19 +1726,10 @@ function render(state) {
   } else if (state.phase === 'stage_clear') {
     stopConveyor();
     highlight(null);
-    // 自動で次のステージへ進むので、残り時間のカウントダウンと次の予告を画面中央に出す
-    const nextStage = state.stage + 1;
-    const nextCount = ACTIVE_BEATS_BY_STAGE[nextStage];
-    const left = Math.max(0, (state.next_stage_at || 0) - Date.now() / 1000);
-    const n = Math.ceil(left);
-
-    // ここでは数字を出さない。カウントダウン(3・2・1)はこの後のカウントインで
-    // 拍に合わせて出すので、二重に数えないようにしている
+    // 数字はこの後のカウントインで拍に合わせて出すので、ここでは出さない
+    // (二重に数えているように見えてしまうため)
     clearOverlayEl.classList.add('show');
     coHeadEl.textContent = `STAGE ${state.stage} CLEAR!`;
-    coNextEl.innerHTML = nextCount
-      ? `つぎは ステージ${nextStage} — ノーツが <b>${nextCount}個</b> 流れてくるよ`
-      : '';
     messageEl.textContent = '';
   } else if (state.phase === 'game_over' || state.phase === 'all_clear') {
     currentStageKey = null;

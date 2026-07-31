@@ -704,8 +704,6 @@ def index():
         count_in_beats=COUNT_IN_BEATS,
         target_presets=presets,
         stage_benchmarks=STAGE_BENCHMARKS,
-        # ステージごとのノーツ数。クリア後の予告(「次は○個流れてくるよ」)に使う
-        active_beats_by_stage=ACTIVE_BEATS_BY_STAGE,
         art=find_art(),
     )
 
