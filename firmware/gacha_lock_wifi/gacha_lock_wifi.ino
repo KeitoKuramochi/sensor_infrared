@@ -322,13 +322,30 @@ void setup() {
 void loop() {
   server.handleClient();
 
-  // WiFiが切れたら繋ぎ直す(ルーター再起動などに追従)
+  // WiFiが切れたら繋ぎ直す(ルーター再起動などに追従)。
+  // ただし接続を試している最中に reconnect を重ねて呼ぶと
+  // "sta is connecting, return error" を延々と出すだけなので、
+  // 「切断が確定した状態」のときだけ呼び直す。
   static uint32_t lastWifiCheck = 0;
+  static bool wasConnected = false;
   if (millis() - lastWifiCheck > 5000) {
     lastWifiCheck = millis();
-    if (WiFi.status() != WL_CONNECTED) {
-      Serial.println("[WiFi] 切断を検知 — 再接続します");
-      WiFi.reconnect();
+    const wl_status_t st = WiFi.status();
+    if (st == WL_CONNECTED) {
+      if (!wasConnected) {
+        wasConnected = true;
+        Serial.printf("[WiFi] 接続しました IP=%s RSSI=%d dBm\n",
+                      WiFi.localIP().toString().c_str(), WiFi.RSSI());
+      }
+    } else {
+      if (wasConnected) {
+        wasConnected = false;
+        Serial.println("[WiFi] 切断されました — 再接続します");
+      }
+      // WL_IDLE_STATUS(接続処理中)のときは邪魔しない
+      if (st == WL_CONNECTION_LOST || st == WL_DISCONNECTED || st == WL_CONNECT_FAILED) {
+        WiFi.reconnect();
+      }
     }
   }
 
