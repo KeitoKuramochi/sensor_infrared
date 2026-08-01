@@ -1028,6 +1028,11 @@
         <button class="ad-btn" data-action="gacha_status">📡 状態を確認</button>
       </div>
 
+      <div class="ad-group">画面</div>
+      <div class="ad-btns">
+        <button class="ad-btn" id="fsBtn" type="button">⛶ 全画面にする</button>
+      </div>
+
       <div class="ad-group">ゲーム側</div>
       <div class="ad-btns">
         <button class="ad-btn" data-action="game_reset">↩ 待機状態に戻す</button>
@@ -1818,7 +1823,28 @@ function renderAdmin(state) {
   adAwaitingEl.className = g.awaiting ? 'warn' : '';
 }
 
-document.querySelectorAll('#admin .ad-btn').forEach(btn => {
+// --- 全画面表示 ---
+// 展示中はブラウザのバーやタブを消したい。キオスクモードで起動するのが一番きれいだが、
+// 普通に開いた場合でもここから切り替えられるようにしておく(⌃⌘F でも可)。
+const fsBtn = document.getElementById('fsBtn');
+
+function updateFsBtn() {
+  fsBtn.textContent = document.fullscreenElement ? '⛶ 全画面をやめる' : '⛶ 全画面にする';
+}
+
+fsBtn.addEventListener('click', async () => {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+  } catch (e) {
+    adResultEl.textContent = '⚠️ 全画面にできませんでした(⌃⌘F を試してください)';
+    adResultEl.className = 'ad-result ng';
+  }
+  updateFsBtn();
+});
+document.addEventListener('fullscreenchange', updateFsBtn);
+
+document.querySelectorAll('#admin .ad-btn[data-action]').forEach(btn => {
   btn.addEventListener('click', async () => {
     const confirmMsg = btn.dataset.confirm;
     if (confirmMsg && !window.confirm(confirmMsg)) return;
