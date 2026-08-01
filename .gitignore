@@ -43,6 +43,7 @@ __pycache__/
 # 元画像(src_*.png)から make_images.py で再生成できるのでコミットしない。
 /firmware/gacha_lock_ble/images.h
 /firmware/gacha_lock_wifi/images.h
+/firmware/gacha_lock_serial/images.h
 
 # オープンキャンパス向けページは別リポジトリ(独立git管理)なので追跡しない
 /opencampus/

@@ -1012,7 +1012,7 @@
 
       <div class="ad-status">
         <div class="ad-row"><span>ガチャ機通信</span><b id="adConn">—</b></div>
-        <div class="ad-row"><span>電波強度</span><b id="adRssi">—</b></div>
+        <div class="ad-row"><span>USBポート</span><b id="adPort">—</b></div>
         <div class="ad-row"><span>接続の長さ</span><b id="adUptime">—</b></div>
         <div class="ad-row"><span>切断した回数</span><b id="adReconn">—</b></div>
         <div class="ad-row"><span>排出の通算</span><b id="adDispensed">—</b></div>
@@ -1775,7 +1775,7 @@ const adResultEl = document.getElementById('adResult');
 const adConnEl = document.getElementById('adConn');
 const adUptimeEl = document.getElementById('adUptime');
 const adReconnEl = document.getElementById('adReconn');
-const adRssiEl = document.getElementById('adRssi');
+const adPortEl = document.getElementById('adPort');
 const adDispensedEl = document.getElementById('adDispensed');
 const adDeviceEl = document.getElementById('adDevice');
 const adPhaseEl = document.getElementById('adPhase');
@@ -1806,14 +1806,9 @@ function renderAdmin(state) {
   adReconnEl.textContent = `${rc}回`;
   adReconnEl.className = rc === 0 ? 'ok' : (rc < 4 ? 'warn' : 'ng');
 
-  // ガチャ機から見たWiFiの電波強度。-70より弱いと不安定になりやすい
-  if (typeof g.rssi === 'number') {
-    adRssiEl.textContent = `${g.rssi} dBm`;
-    adRssiEl.className = g.rssi > -60 ? 'ok' : (g.rssi > -72 ? 'warn' : 'ng');
-  } else {
-    adRssiEl.textContent = '—';
-    adRssiEl.className = '';
-  }
+  // USBで直結しているポート名(どのケーブルで繋がっているか分かるように)
+  adPortEl.textContent = g.port ? String(g.port).replace('/dev/cu.', '') : '—';
+  adPortEl.className = g.port ? 'ok' : '';
   adDispensedEl.textContent = (typeof g.dispense_count === 'number')
     ? `${g.dispense_count}個` : '—';
   adDeviceEl.textContent = DEVICE_JA[g.device] || '不明';

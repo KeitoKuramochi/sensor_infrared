@@ -33,7 +33,6 @@ import random
 import sys
 import threading
 import time
-import urllib.request
 
 from flask import Flask, jsonify, render_template, request
 
@@ -110,17 +109,21 @@ DEFAULT_TARGET_SCORE = 500
 GACHA_UNLOCK_DELAY_SEC = 4.2
 
 # --- ガチャロック解除 (友人(MaedaReno)制作の gacha-machine プロジェクトとの連携) ---
-# ガチャ機側のESP32には firmware/gacha_lock_wifi を書き込む。同じLANに繋がり、
-# HTTPで /status /unlock /lock を受け付ける。mDNSで gacha.local を名乗るのでIPは不要。
+# ガチャ機側のESP32には firmware/gacha_lock_serial を書き込み、USBケーブルで直結する。
+# シリアル(115200bps)で1行ずつやり取りする:
+#   PC → ESP32 : UNLOCK / LOCK / STATUS
+#   ESP32 → PC : #GACHA state=LOCKED dispensed=3   (状態が変わるたびに自動でも届く)
 #
-# 以前はBLE版(firmware/gacha_lock_ble)を使っていたが、電波が弱いと接続が頻繁に切れ、
-# 「排出した」の通知を取りこぼして次の人に進めなくなる問題が実イベントで出たため
-# WiFiに移行した。ポーリング方式なので一時的に通信が途切れても次のポーリングで
-# 追いつける。さらに排出は通算カウンタで数えるので、取りこぼしても検知できる。
-# (リモコン側 ColorMemoryGame はBLEのまま。そちらは安定しているため)
-GACHA_HOST = os.environ.get("GACHA_HOST", "gacha.local")
-GACHA_TIMEOUT_SEC = 3
-GACHA_POLL_SEC = 0.4       # 状態を見に行く間隔
+# 通信方式の変遷:
+#   BLE版  … 電波が弱いと切断が頻発し、「排出した」の通知を取りこぼして次の人に
+#            進めなくなる問題が実イベントで発生
+#   WiFi版 … 会場のネットワークに依存し、PCとガチャ機を同じLANに置く必要があった
+#   シリアル版(現行) … USB直結。電波の問題が原理的に無くなる
+# 排出は通算カウンタの差分で判定するので、1行取りこぼしても次の行で気づける。
+# (リモコン側 ColorMemoryGame はBLEのまま。手に持って使ううえ安定しているため)
+GACHA_PORT = os.environ.get("GACHA_PORT", "")   # 空なら自動で探す
+GACHA_BAUD = 115200
+GACHA_POLL_SEC = 1.0       # 保険の状態問い合わせ間隔(通常は向こうから届く)
 # 解除に必要な点数は挑戦者がプレイ開始時に選ぶ (TARGET_PRESETS)。
 
 lock = threading.Lock()
@@ -160,7 +163,7 @@ state = {
     #   awaiting : 解錠したがまだ再施錠されていない(=次の人を待たせる)
     #   reconnects: 通信が切れて復帰した回数。増え続けるなら置き場所か電波が悪い
     #   connected_since: 今の接続が始まった時刻
-    #   rssi: ガチャ機から見たWiFiの電波強度(dBm)。設置位置の判断に使う
+    #   port: 繋がっているUSBシリアルポート名(どのケーブルか分かるように)
     #   dispense_count: ガチャ機が数えている排出の通算数(差分で新しい排出を検知する)
     "gacha": {
         "eligible": False,
@@ -171,7 +174,7 @@ state = {
         "awaiting": False,
         "reconnects": 0,
         "connected_since": None,
-        "rssi": None,
+        "port": None,
         "dispense_count": None,
     },
 }
@@ -366,10 +369,12 @@ def apply_gacha_status(data: dict):
         dev = str(data.get("state", "")).upper()
         if dev in ("LOCKED", "UNLOCKED", "DISPENSED"):
             g["device"] = dev
-        g["rssi"] = data.get("rssi")
 
-        count = data.get("dispensed")
-        if isinstance(count, int):
+        try:
+            count = int(data.get("dispensed"))
+        except (TypeError, ValueError):
+            count = None
+        if count is not None:
             prev = g.get("dispense_count")
             if prev is not None and count > prev:
                 print(f"[GACHA] カプセルの排出を確認しました (通算{count}個目)")
@@ -381,29 +386,39 @@ def apply_gacha_status(data: dict):
             print("[GACHA] 再施錠を確認しました — 次の人どうぞ")
 
 
-def gacha_http(path: str):
-    """ガチャ機にHTTPでアクセスして、返ってきたJSONを返す。
-    (成功したか, データまたはエラー文) を返す。ネットワーク待ちが入るので
-    lock を保持したまま呼ばないこと。"""
-    url = f"http://{GACHA_HOST}/{path}"
-    try:
-        with urllib.request.urlopen(url, timeout=GACHA_TIMEOUT_SEC) as resp:
-            return True, json.loads(resp.read().decode())
-    except Exception as e:
-        return False, str(e)
+# シリアル接続はこのロックで守る(書き込みと読み取りが別スレッドから来るため)
+gacha_serial_lock = threading.Lock()
+gacha_serial = {"port": None, "name": ""}
+
+
+def parse_gacha_line(line: str):
+    """ガチャ機が送る "#GACHA state=LOCKED dispensed=3" を辞書にする。
+    それ以外の行(人が読むための日本語ログ)は None を返す。"""
+    if not line.startswith("#GACHA"):
+        return None
+    data = {}
+    for token in line[len("#GACHA"):].split():
+        if "=" in token:
+            k, v = token.split("=", 1)
+            data[k] = v
+    return data
 
 
 def send_gacha_command(cmd: str):
     """ガチャ機にコマンドを送る。(成功したか, 詳細) を返す。
-    受け付けるコマンドは firmware/gacha_lock_wifi 側の実装に対応: UNLOCK / LOCK / STATUS"""
-    path = {"UNLOCK": "unlock", "LOCK": "lock", "STATUS": "status"}.get(cmd)
-    if path is None:
+    返事は受信スレッドが拾って state に反映するので、ここでは送るだけ。"""
+    if cmd not in ("UNLOCK", "LOCK", "STATUS"):
         return False, f"不明なコマンド: {cmd}"
-    ok, data = gacha_http(path)
-    if ok:
-        apply_gacha_status(data)
-        return True, ""
-    return False, f"ガチャ機({GACHA_HOST})に接続できません: {data}"
+    with gacha_serial_lock:
+        port = gacha_serial["port"]
+        if port is None:
+            return False, "ガチャ機がUSBで接続されていません"
+        try:
+            port.write((cmd + "\n").encode())
+            port.flush()
+            return True, ""
+        except Exception as e:
+            return False, f"送信に失敗しました: {e}"
 
 
 def _request_gacha_unlock():
@@ -860,37 +875,110 @@ def ble_reader():
 # 状態を見に行くポーリング方式にした。一時的に通信が切れても次のポーリングで追いつく。
 
 
-def gacha_poller():
-    """定期的にガチャ機の状態を見に行き、接続状況と排出状況を追いかける。"""
-    print(f"[GACHA] {GACHA_HOST} を監視します (mDNS。IPを直接指定したいときは "
-          f"環境変数 GACHA_HOST で上書きできます)")
-    was_connected = None
+def find_gacha_port():
+    """ガチャ機が繋がっているシリアルポートを探す。
+
+    リモコン側のESP32など別の機器が挿さっていることもあるので、
+    見つけたポートに STATUS を送って "#GACHA" で返事をしたものだけを採用する。
+    環境変数 GACHA_PORT が指定されていればそれを優先する。
+    """
+    import glob
+    import serial
+
+    candidates = [GACHA_PORT] if GACHA_PORT else sorted(glob.glob("/dev/cu.usbserial*"))
+    for path in candidates:
+        try:
+            port = serial.Serial(path, GACHA_BAUD, timeout=0.4)
+        except Exception:
+            continue
+        try:
+            # 開くとESP32がリセットされるので、起動を待ってから問い合わせる
+            time.sleep(2.0)
+            port.reset_input_buffer()
+            port.write(b"STATUS\n")
+            port.flush()
+            deadline = time.time() + 3.0
+            while time.time() < deadline:
+                line = port.readline().decode(errors="ignore").strip()
+                if parse_gacha_line(line) is not None:
+                    return port, path
+        except Exception:
+            pass
+        try:
+            port.close()
+        except Exception:
+            pass
+    return None, ""
+
+
+def gacha_serial_reader():
+    """ガチャ機とのシリアル接続を維持し、届いた状態行を state に反映する。
+    ケーブルを抜き差ししても自動で繋ぎ直す。"""
+    try:
+        import serial  # noqa: F401
+    except ImportError:
+        print("[GACHA] pyserial が無いためガチャ連携は無効です (pip install pyserial)")
+        return
+
+    print("[GACHA] USBでガチャ機を探します"
+          + (f" (指定: {GACHA_PORT})" if GACHA_PORT else " (/dev/cu.usbserial* を順に確認)"))
     first = True
+    waiting_logged = False
+
     while True:
-        ok, data = gacha_http("status")
-        if ok:
-            apply_gacha_status(data)
+        port, path = find_gacha_port()
+        if port is None:
+            if not waiting_logged:
+                print("[GACHA] 見つかりません — USBケーブルを確認してください"
+                      "(データ通信できるケーブルが必要です)")
+                waiting_logged = True
+            time.sleep(3)
+            continue
+
+        waiting_logged = False
+        with gacha_serial_lock:
+            gacha_serial["port"] = port
+            gacha_serial["name"] = path
+        with lock:
+            g = state["gacha"]
+            g["connected"] = True
+            g["connected_since"] = time.time()
+            g["port"] = path
+            if not first:
+                g["reconnects"] += 1
+        first = False
+        print(f"[GACHA] つながりました ({path})")
+
+        last_poll = 0.0
+        try:
+            while True:
+                line = port.readline().decode(errors="ignore").strip()
+                if line:
+                    data = parse_gacha_line(line)
+                    if data is not None:
+                        apply_gacha_status(data)
+                    else:
+                        print(f"[GACHA] {line}")   # ガチャ機側の日本語ログ
+                # 保険: たまに状態を問い合わせて、取りこぼしがあっても追いつく
+                if time.time() - last_poll > GACHA_POLL_SEC:
+                    last_poll = time.time()
+                    port.write(b"STATUS\n")
+                    port.flush()
+        except Exception as e:
+            print(f"[GACHA] 切断されました ({e}) — 繋ぎ直します")
+        finally:
+            with gacha_serial_lock:
+                gacha_serial["port"] = None
             with lock:
-                g = state["gacha"]
-                if not g["connected"]:
-                    g["connected"] = True
-                    g["connected_since"] = time.time()
-                    if not first:
-                        g["reconnects"] += 1
-            if was_connected is not True:
-                print(f"[GACHA] つながりました ({GACHA_HOST}) — "
-                      f"電波 {data.get('rssi')} dBm")
-            was_connected = True
-            first = False
-        else:
-            with lock:
-                g = state["gacha"]
-                g["connected"] = False
-                g["connected_since"] = None
-            if was_connected is not False:
-                print(f"[GACHA] つながりません: {data}")
-            was_connected = False
-        time.sleep(GACHA_POLL_SEC)
+                state["gacha"]["connected"] = False
+                state["gacha"]["connected_since"] = None
+                state["gacha"]["port"] = None
+            try:
+                port.close()
+            except Exception:
+                pass
+        time.sleep(2)
+
 
 
 if __name__ == "__main__":
@@ -898,5 +986,5 @@ if __name__ == "__main__":
     sys.stdout.reconfigure(line_buffering=True)
     threading.Thread(target=stage_ticker, daemon=True).start()
     threading.Thread(target=ble_reader, daemon=True).start()
-    threading.Thread(target=gacha_poller, daemon=True).start()
+    threading.Thread(target=gacha_serial_reader, daemon=True).start()
     app.run(host="0.0.0.0", port=8000, debug=False)

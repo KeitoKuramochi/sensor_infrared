@@ -32,6 +32,7 @@ FIRMWARE_DIR = os.path.dirname(HERE)
 OUT_PATHS = [
     os.path.join(HERE, "images.h"),
     os.path.join(FIRMWARE_DIR, "gacha_lock_wifi", "images.h"),
+    os.path.join(FIRMWARE_DIR, "gacha_lock_serial", "images.h"),
 ]
 
 # (Cのシンボル名, 元画像のベース名)
