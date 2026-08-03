@@ -62,18 +62,35 @@ open -na "Google Chrome" --args --kiosk --app=http://localhost:8000/
 
 ## フォルダの歩き方
 
+```
+sensor/
+├── START_HERE.md   ← いまこれ
+├── README.md       作り方・配線・遊び方(手順書)
+├── SESSION_LOG.md  全セッションの作業記録(一番濃い)
+├── CLAUDE.md       AIに守らせているルール
+├── 動作用.txt       展示当日の起動手順メモ
+│
+├── pc_game/        ★ ゲーム本体(PC側)
+├── firmware/       ★ ESP32のスケッチ(現行2つ + 旧版の墓場)
+├── site/           制作記事のページ
+├── opencampus/     解説ページ ※中身は別リポジトリ
+└── 素材/            撮影の元データ・AI生成画像 ※git管理外(780MB)
+```
+
 | 場所 | 中身 | 備考 |
 |---|---|---|
 | `pc_game/game_server.py` | **ゲーム本体**(Flask・990行) | 判定・スコア・ランキング・ガチャ連携すべてここ |
 | `pc_game/templates/index.html` | **ゲーム画面**(1869行) | 見た目・演出・管理パネル |
 | `firmware/color_memory_game_ble/` | ★ **現行** リモコン側ファーム | IR受信 → BLEでPCへ |
 | `firmware/gacha_lock_serial/` | ★ **現行** ガチャ機側ファーム | USBシリアル。サーボ+IRセンサー+液晶 |
-| `firmware/` のその他 | 旧版の墓場 | `_wifi` `_bt` `gacha_lock_ble` `gacha_lock_wifi` など。**歴史として残してある** |
+| `firmware/` のその他 | 旧版の墓場 | `_wifi` `_bt` `gacha_lock_wifi` など。**歴史として残してある** |
 | `site/` | 制作記事(個人ブログ寄り) | → https://sensor-infrared.vercel.app/ |
 | `opencampus/` | オープンキャンパス用の技術解説ページ | **中身は別リポジトリ**(`opencampus-sensor-lab`)。親からは gitignore |
-| `画像/` | AI生成画像・撮影素材の元データ | gitignore(重いので) |
-| `SESSION_LOG.md` | 全セッションの作業記録 | 一番濃い資料。困ったら grep |
-| `CLAUDE.md` | AIに守らせているルール | 下の「決まりごと」参照 |
+| `素材/` | 撮影の元データ・AI生成画像の元ファイル | git管理外。**[`素材/README.md`](素材/README.md) に元ファイル名との対応表**あり |
+
+> ⚠️ **紛らわしい点**: ガチャ機の液晶画像を作るスクリプト(`make_images.py`)と元画像は、
+> 旧版の `firmware/gacha_lock_ble/` に置いたままになっている。
+> 現行の `gacha_lock_serial/images.h` もここから生成される(スクリプトが3か所に配る作り)。
 
 ---
 
@@ -197,7 +214,11 @@ QRコードを貼るA4ポスターの生成プロンプト(`opencampus/POSTER_PR
 2. **`SESSION_LOG.md` に8/1午後の作業が未記載。** USBシリアル化・カウントダウン修正・全画面表示は
    コミットには残っているが、ログのエントリが無い
 3. **デモ動画(`opencampus/videos/demo.mp4`)の音声チェックが未完。** 会話が入っていないかは人の耳で確認が必要
-4. 任意: ガチャ機の全景写真を撮って、解説ページのセクション07に足す
+4. **`素材/_プロジェクト外/` に無関係な写真が1枚**(ルートに紛れ込んでいたので隔離した)。
+   **氏名入りのステッカーが写っている**ので git には上げないこと。不要なら消してよい
+5. 任意: ガチャ機の全景写真を撮って、解説ページのセクション07に足す
+6. 任意: 上で触れた画像生成ツール(`make_images.py` と `src_*.jpg`)を、
+   旧版フォルダから現行の `firmware/gacha_lock_serial/` に引っ越す
 
 ---
 
@@ -208,4 +229,5 @@ QRコードを貼るA4ポスターの生成プロンプト(`opencampus/POSTER_PR
 | 配線・セットアップ・遊び方 | [README.md](README.md) |
 | 「あの時なぜそうしたか」 | [SESSION_LOG.md](SESSION_LOG.md)(新しい順。読み応えあり) |
 | 展示当日の運用手順 | [動作用.txt](動作用.txt) |
+| 写真・動画の元データはどれ? | [素材/README.md](素材/README.md)(元のIMG番号との対応表) |
 | 作った理由のストーリー | https://sensor-infrared.vercel.app/ |
